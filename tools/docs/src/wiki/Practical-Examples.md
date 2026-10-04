@@ -53,8 +53,26 @@ because they contain a comma, a quote or even a line break; some are empty.
   a phantom last row of empty values. (Writing `(NL OR EOF)` as the record terminator instead is rejected by `txtql check`
   as an empty repetition, because a record could then match nothing at the end of the text.) Empty fields are still fine
   anywhere in a record with two or more columns, including the last one (`2,"Grace ""Amazing"" Hopper",` below).
-- A `cell` is `quoted OR plain`. A quoted cell runs up to a closing quote that is followed by a comma or a line break, so a
-  comma or a line break inside the quotes is just text.
+- A `cell` is `quoted OR plain`. A quoted cell is a quote, any number of pieces, and a closing quote. A piece is either `""`
+  (a doubled quote, the CSV way to write a quote inside a field) or a `run`: one or more characters that are not a quote
+  (`ANY UNTILBEFORE '"'`). So a comma or a line break inside the quotes is just text, and the closing quote is the first
+  quote that is not part of a `""` pair, wherever it stands.
+- **Why `run` and not `ANY`.** The shorter `('""' OR ANY)` is ambiguous: `ANY` also matches a lone quote, so a `""` could be
+  read as one doubled quote or as two separate characters, and the field could end in more than one place. Because a `run`
+  never contains a quote, every quote in the field is either half of a `""` or the closing one, and there is exactly one way
+  to read it. The cases that a "quote followed by a comma or line break" rule gets wrong are all exact here, and `--strict`
+  passes: a doubled quote right before a comma,
+
+{{ex pe_csv_q1}}
+
+  right before a line break inside a quoted field,
+
+{{ex pe_csv_q2}}
+
+  and a field made only of quotes (`""""` is one doubled quote; `""` is the empty field):
+
+{{ex pe_csv_q3}}
+
 - A `plain` cell stops at the next comma or line break. Without the `WHERE NOT v STARTSWITH '"'` it could also read the start
   of a quoted cell (`"likes tea`) as a plain cell, a second reading of the same text. txtql notices:
   `txtql check` on the version without the `WHERE` reports it,
@@ -79,15 +97,23 @@ because they contain a comma, a quote or even a line break; some are empty.
 - A doubled quote inside a quoted field (`""`) is kept as written (`"Grace \"\"Amazing\"\" Hopper"` above): txtql has no
   function to replace text, so the escape cannot be undone inside the query. Post-process with `jq` (`gsub("\"\""; "\"")`)
   if you need it.
-- The quoted-cell rule ends at a quote followed by a comma, a line break or the end of the text, so a doubled quote right before
-  one of those ends the field early. With a comma, as in `"say ""hi"", then leave"`, the record gets too many cells and `ZIP`
-  reports an error. With a line break (`"say ""hi""` at the end of a line inside a quoted field) the query reports **no error**, not even with
-  `--strict`: the rest of the field is read as an extra, mis-shaped row. Compare the number of rows with the input if
-  such files are possible. Quoted fields with doubled quotes elsewhere, or with commas and line breaks, are fine.
 - Blank lines are not allowed: a record is never empty (see above), so a blank line, or a second line break at the end of the
   file, is an error rather than a row of empty values. The same goes for a one-column file with an empty value in a row, which
   is indistinguishable from a blank line. Strip blank lines first if the file may have them (`grep -v '^$'`).
 - Fixed separators other than a comma work the same way: change the `','`.
+
+**Backslash escapes.** Some exports write `\"` inside a quoted field instead of `""`. That is one more kind of piece: a
+backslash followed by any character (`esc`), with `run` also stopping at a backslash. Only the quoted rule and `run` change:
+
+    quoted = '"' v:(0 TO n (esc OR '""' OR run)) '"' AS v
+    esc    = '\\' ANY
+    run    = 1 TO n ANY UNTILBEFORE ('"' OR '\\')
+
+It is still exact under `--strict`. A backslash is always an escape here, so `C:\temp` is read as the pair `\t` (the text is kept
+as written, and a lone backslash needs no special case), and a field that ends in a backslash before its closing quote (`"x\"`)
+is rejected, because that really is an escaped quote followed by a missing closing quote.
+
+{{ex pe_csv_bs}}
 
 A file without a final line break, ending in an empty field, is read like any other:
 
@@ -339,7 +365,8 @@ txtql --strict queries/access.tql /var/log/nginx/access.log > access.json
 
 Things that were awkward, and where the language draws its line:
 
-- No text replacement: `""` inside a quoted CSV field cannot be turned into `"` by the query.
+- Quote-doubling in CSV is expressed exactly (`0 TO n ('""' OR run)`, recipe 1). The one gap is the output: there is no text
+  replacement, so `""` inside a quoted CSV field cannot be turned into `"` by the query (use `jq`).
 - No numeric test: text cannot be classified as "a number" in a `WHERE`, so typing a value as number or string needs a
   separate rule per known field.
 - `LINE` is only valid at the start of a line; inside a line use `ANY UNTILBEFORE NL`.

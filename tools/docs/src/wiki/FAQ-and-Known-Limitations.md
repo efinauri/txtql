@@ -51,6 +51,9 @@ Standard error. JSON goes to standard output. Exit code 1 for any error, 2 for `
 - **The ambiguity check has a budget** and stops quietly (with a note) on very ambiguous input; `txtql check` has no practical limit.
 - **Reports are capped** at one per match and 20 per run.
 - **Not covered by design**: indentation-based nesting, and anything that needs language understanding (txtql is purely structural).
+- **No text transformation**, by design: txtql recognises structure and returns the captured text as it is. Template functions such as `JOIN`, `ZIP` and `LISTOF` shape the
+  structure of the output, but nothing rewrites the text of a capture (replace, unescape, trim, change case, parse dates). Do that after txtql, for example with `jq`:
+  `txtql query.tql data.csv | jq 'walk(if type == "string" then gsub("\"\""; "\"") else . end)'` turns the doubled quotes of CSV fields into single ones.
 - **Not yet released**: version 0.1.0; the language may still change.
 - **Number formats**: `FLOAT` has no sign or exponent (write `0 TO 1 '-' FLOAT`); `INT` and `FLOAT` read ASCII digits only.
 - **`IPV6`** matches RFC 4291 text forms without a zone suffix.

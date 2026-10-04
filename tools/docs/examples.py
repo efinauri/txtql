@@ -300,7 +300,8 @@ record = several OR alone
 several = 2 TO n cells:cell SPLITBY ',' AS cells
 alone  = c:cell WHERE c != '' AS [c]
 cell   = quoted OR plain
-quoted = '"' v:(ANY UNTILBEFORE ('"' (',' OR NL OR EOF))) '"' AS v
+quoted = '"' v:(0 TO n ('""' OR run)) '"' AS v
+run    = 1 TO n ANY UNTILBEFORE '"'
 plain  = v:(ANY UNTILBEFORE (',' OR NL OR EOF)) WHERE NOT v STARTSWITH '"' AS v
 '''
 PE_CSV_NAIVE = '''TEXT   = header:record NL 1 TO n rows:record SPLITBY NL 0 TO 1 NL AS [ ZIP(header, r) FOR r IN rows ]
@@ -308,8 +309,19 @@ record = several OR alone
 several = 2 TO n cells:cell SPLITBY ',' AS cells
 alone  = c:cell WHERE c != '' AS [c]
 cell   = quoted OR plain
-quoted = '"' v:(ANY UNTILBEFORE ('"' (',' OR NL OR EOF))) '"' AS v
+quoted = '"' v:(0 TO n ('""' OR run)) '"' AS v
+run    = 1 TO n ANY UNTILBEFORE '"'
 plain  = v:(ANY UNTILBEFORE (',' OR NL OR EOF)) AS v
+'''
+PE_CSV_BS = '''TEXT   = header:record NL 1 TO n rows:record SPLITBY NL 0 TO 1 NL AS [ ZIP(header, r) FOR r IN rows ]
+record = several OR alone
+several = 2 TO n cells:cell SPLITBY ',' AS cells
+alone  = c:cell WHERE c != '' AS [c]
+cell   = quoted OR plain
+quoted = '"' v:(0 TO n (esc OR '""' OR run)) '"' AS v
+esc    = '\\\\' ANY
+run    = 1 TO n ANY UNTILBEFORE ('"' OR '\\\\')
+plain  = v:(ANY UNTILBEFORE (',' OR NL OR EOF)) WHERE NOT v STARTSWITH '"' AS v
 '''
 PE_TSV = '''TEXT   = header:record 1 TO n rows:record AS [ ZIP(header, r) FOR r IN rows ]
 record = 1 TO n cells:cell SPLITBY TAB NL AS cells
@@ -465,11 +477,19 @@ PE_CSV_WIDE_IN = 'id,name\n1,Ada,extra\n'
 PE_CSV_SHORT_IN = 'id,name\n1,Ada\n2\n'
 PE_CSV_NONL_IN = 'id,name\n1,Ada\n2,'
 PE_CSV_BLANK_IN = 'id,name\n1,Ada\n\n2,Bo\n'
+PE_CSV_Q1_IN = 'id,note\n1,"say ""hi"", then leave"\n'
+PE_CSV_Q2_IN = 'id,note\n1,"she said ""stop""\nand left"\n'
+PE_CSV_Q3_IN = 'id,note\n1,""""\n2,""\n'
+PE_CSV_BS_IN = 'id,note\n1,"say \\"hi\\", then leave"\n2,"C:\\temp\\\\x"\n'
 ex('pe_csv', PE_CSV, PE_CSV_IN)
 ex('pe_csv_short', PE_CSV, PE_CSV_SHORT_IN)
 ex('pe_csv_wide', PE_CSV, PE_CSV_WIDE_IN, expect=1)
 ex('pe_csv_nonl', PE_CSV, PE_CSV_NONL_IN)
 ex('pe_csv_blank', PE_CSV, PE_CSV_BLANK_IN, expect=1)
+ex('pe_csv_q1', PE_CSV, PE_CSV_Q1_IN, flags=['--strict'])
+ex('pe_csv_q2', PE_CSV, PE_CSV_Q2_IN, flags=['--strict'])
+ex('pe_csv_q3', PE_CSV, PE_CSV_Q3_IN, flags=['--strict'])
+ex('pe_csv_bs', PE_CSV_BS, PE_CSV_BS_IN, flags=['--strict'])
 ex('pe_csv_naive', PE_CSV_NAIVE, PE_CSV_IN, mode='check', expect=2)
 ex('pe_csv_naive_strict', PE_CSV_NAIVE, PE_CSV_IN, flags=['--strict'], expect=1)
 ex('pe_tsv', PE_TSV, PE_TSV_IN)
@@ -483,6 +503,10 @@ ex('pe_mail', PE_MAIL, PE_MAIL_IN)
 ex('pe_ci_ok', PE_CHG, PE_CHG_IN, mode='check')
 ex('pe_pipe', "TEXT  = 1 TO n entry\nentry = kb:INT TAB path:(ANY UNTILBEFORE NL) NL AS { 'kb': NUM(kb), 'path': path }", '4096\t./src\n12\t./docs\n', via='expr', flags=['--compact'])
 chk('recipe csv is free of ambiguity and repeated keys (--strict succeeds)', PE_CSV, PE_CSV_IN, 'OK', '--strict')
+chk('recipe csv (backslash variant) is free of ambiguity and repeated keys (--strict succeeds)', PE_CSV_BS, PE_CSV_BS_IN, 'OK', '--strict')
+chk('recipe csv (backslash variant): a backslash right before the closing quote is not a field', PE_CSV_BS, 'a,b\n1,"x\\"\n', 'ERR:txtql::input::no_parse', '--strict')
+chk('recipe csv: only doubled quotes before a comma', PE_CSV, 'a,b\n"""",1\n', '[{"a":"\\"\\"","b":"1"}]', '--strict')
+chk('recipe csv: doubled quote right before a comma and a line break in one record', PE_CSV, 'a,b\n"x "",y","z ""\nw"\n', '[{"a":"x \\"\\",y","b":"z \\"\\"\\nw"}]', '--strict')
 chk('recipe tsv is free of ambiguity and repeated keys (--strict succeeds)', PE_TSV, PE_TSV_IN, 'OK', '--strict')
 chk('recipe ini is free of ambiguity and repeated keys (--strict succeeds)', PE_INI, PE_INI_IN, 'OK', '--strict')
 chk('recipe acc is free of ambiguity and repeated keys (--strict succeeds)', PE_ACC, PE_ACC_IN, 'OK', '--strict')
