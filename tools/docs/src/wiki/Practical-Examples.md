@@ -9,7 +9,8 @@ the [[Language Reference|Language-Reference]] has the details.
 Two things apply to every recipe:
 
 - txtql never skips anything implicitly: the query must account for every character, including the final line break.
-  That is why several queries end a record with `NL` and why the sample files end with a line break.
+  That is why several queries end a record with `NL` and why the sample files end with a line break. (The CSV recipe
+  shows how to make that final line break optional.)
 - When the text does not fit, you get an error that points at where matching stopped, not a partial result.
 
 | Recipe | What it shows |
@@ -41,8 +42,17 @@ because they contain a comma, a quote or even a line break; some are empty.
 
 **How it works.**
 
-- `record` is one or more cells separated by commas, up to a line break, and its value is the list of its cells. `TEXT` reads
-  the header record, then one or more records. `ZIP(header, r)` pairs the header names with each record's cells to make an object.
+- A `record` is a list of cells separated by commas, and its value is the list of its cells. `TEXT` reads the header record and a
+  line break, then one or more records separated by line breaks, then at most one final line break. `ZIP(header, r)` pairs the
+  header names with each record's cells to make an object.
+- **The final line break is optional.** A file that ends with a line break and one that does not give the same output. The
+  cells stop before a comma, a line break or the end of the text (`OR EOF`), and the trailing `0 TO 1 NL` takes the final line
+  break if there is one. This is safe only because an empty record cannot exist: a `record` is either two or more cells
+  (`several`) or a single cell that is not empty (`alone`, `WHERE c != ''`). Otherwise the text after the last line break would
+  also read as one more record with a single empty cell, and an input ending in `\n` would have two readings, one of them with
+  a phantom last row of empty values. (Writing `(NL OR EOF)` as the record terminator instead is rejected by `txtql check`
+  as an empty repetition, because a record could then match nothing at the end of the text.) Empty fields are still fine
+  anywhere in a record with two or more columns, including the last one (`2,"Grace ""Amazing"" Hopper",` below).
 - A `cell` is `quoted OR plain`. A quoted cell runs up to a closing quote that is followed by a comma or a line break, so a
   comma or a line break inside the quotes is just text.
 - A `plain` cell stops at the next comma or line break. Without the `WHERE NOT v STARTSWITH '"'` it could also read the start
@@ -69,14 +79,23 @@ because they contain a comma, a quote or even a line break; some are empty.
 - A doubled quote inside a quoted field (`""`) is kept as written (`"Grace \"\"Amazing\"\" Hopper"` above): txtql has no
   function to replace text, so the escape cannot be undone inside the query. Post-process with `jq` (`gsub("\"\""; "\"")`)
   if you need it.
-- The quoted-cell rule ends at a quote followed by a comma or a line break, so a field such as `"say ""hi"", then leave"`
-  (a doubled quote right before a comma) ends early and the record then has too many cells (an error, not wrong output). Quoted fields
-  with doubled quotes elsewhere, or with commas and line breaks, are fine.
-- The last record needs its line break. If a file may lack one, add it on the way in: `sed -e '$a\' data.csv | txtql csv.tql`.
-  Without it the error is the one below.
-- A blank line reads as a record with one empty cell (an object whose first column is empty and the others `null`). Fixed separators other than a comma work the same way: change the `','`.
+- The quoted-cell rule ends at a quote followed by a comma, a line break or the end of the text, so a doubled quote right before
+  one of those ends the field early. With a comma, as in `"say ""hi"", then leave"`, the record gets too many cells and `ZIP`
+  reports an error. With a line break (`"say ""hi""` at the end of a line inside a quoted field) the query reports **no error**, not even with
+  `--strict`: the rest of the field is read as an extra, mis-shaped row. Compare the number of rows with the input if
+  such files are possible. Quoted fields with doubled quotes elsewhere, or with commas and line breaks, are fine.
+- Blank lines are not allowed: a record is never empty (see above), so a blank line, or a second line break at the end of the
+  file, is an error rather than a row of empty values. The same goes for a one-column file with an empty value in a row, which
+  is indistinguishable from a blank line. Strip blank lines first if the file may have them (`grep -v '^$'`).
+- Fixed separators other than a comma work the same way: change the `','`.
+
+A file without a final line break, ending in an empty field, is read like any other:
 
 {{ex pe_csv_nonl}}
+
+and a blank line is reported at the point where matching stopped:
+
+{{ex pe_csv_blank}}
 
 ## 2. TSV and INI configuration to JSON
 
@@ -325,5 +344,7 @@ Things that were awkward, and where the language draws its line:
   separate rule per known field.
 - `LINE` is only valid at the start of a line; inside a line use `ANY UNTILBEFORE NL`.
 - A filtering query (`SKIPPING` over unwanted lines) that matches nothing returns `[]` rather than an error.
+- Making the final line break optional (`(NL OR EOF)` ending a record) is rejected as an empty repetition when a record can be empty. Make
+  sure a record cannot be empty (recipe 1: two or more cells, or one non-empty cell) and `NL` between records plus `0 TO 1 NL` at the end does it.
 - A rule named like a keyword (`row`, `line`, ...) is rejected, so pick names such as `record` and `failed`.
 - A label in front of a repetition captures the matched text, not a list: label the items to get a list of values.

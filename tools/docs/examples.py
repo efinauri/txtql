@@ -295,17 +295,21 @@ chk("nesting beyond the default --max-depth is a clean error", "TEXT = a\na = '(
 chk("--max-depth can be raised", "TEXT = a\na = '(' a ')' OR 'x'", '(' * 20000 + 'x' + ')' * 20000, 'OK', '--max-depth', '100000')
 
 # ---- Practical Examples (recipes)
-PE_CSV = '''TEXT   = header:record 1 TO n rows:record AS [ ZIP(header, r) FOR r IN rows ]
-record = 1 TO n cells:cell SPLITBY ',' NL AS cells
+PE_CSV = '''TEXT   = header:record NL 1 TO n rows:record SPLITBY NL 0 TO 1 NL AS [ ZIP(header, r) FOR r IN rows ]
+record = several OR alone
+several = 2 TO n cells:cell SPLITBY ',' AS cells
+alone  = c:cell WHERE c != '' AS [c]
 cell   = quoted OR plain
-quoted = '"' v:(ANY UNTILBEFORE ('"' (',' OR NL))) '"' AS v
-plain  = v:(ANY UNTILBEFORE (',' OR NL)) WHERE NOT v STARTSWITH '"' AS v
+quoted = '"' v:(ANY UNTILBEFORE ('"' (',' OR NL OR EOF))) '"' AS v
+plain  = v:(ANY UNTILBEFORE (',' OR NL OR EOF)) WHERE NOT v STARTSWITH '"' AS v
 '''
-PE_CSV_NAIVE = '''TEXT   = header:record 1 TO n rows:record AS [ ZIP(header, r) FOR r IN rows ]
-record = 1 TO n cells:cell SPLITBY ',' NL AS cells
+PE_CSV_NAIVE = '''TEXT   = header:record NL 1 TO n rows:record SPLITBY NL 0 TO 1 NL AS [ ZIP(header, r) FOR r IN rows ]
+record = several OR alone
+several = 2 TO n cells:cell SPLITBY ',' AS cells
+alone  = c:cell WHERE c != '' AS [c]
 cell   = quoted OR plain
-quoted = '"' v:(ANY UNTILBEFORE ('"' (',' OR NL))) '"' AS v
-plain  = v:(ANY UNTILBEFORE (',' OR NL)) AS v
+quoted = '"' v:(ANY UNTILBEFORE ('"' (',' OR NL OR EOF))) '"' AS v
+plain  = v:(ANY UNTILBEFORE (',' OR NL OR EOF)) AS v
 '''
 PE_TSV = '''TEXT   = header:record 1 TO n rows:record AS [ ZIP(header, r) FOR r IN rows ]
 record = 1 TO n cells:cell SPLITBY TAB NL AS cells
@@ -459,11 +463,13 @@ Ship to: 12 Rue Example, Paris
 PE_TSV_IN = 'sku\tqty\tprice\n A-100\t3\t4.50\nB-7\t\t12.00\n'
 PE_CSV_WIDE_IN = 'id,name\n1,Ada,extra\n'
 PE_CSV_SHORT_IN = 'id,name\n1,Ada\n2\n'
-PE_CSV_NONL_IN = 'id,name\n1,Ada'
+PE_CSV_NONL_IN = 'id,name\n1,Ada\n2,'
+PE_CSV_BLANK_IN = 'id,name\n1,Ada\n\n2,Bo\n'
 ex('pe_csv', PE_CSV, PE_CSV_IN)
 ex('pe_csv_short', PE_CSV, PE_CSV_SHORT_IN)
 ex('pe_csv_wide', PE_CSV, PE_CSV_WIDE_IN, expect=1)
-ex('pe_csv_nonl', PE_CSV, PE_CSV_NONL_IN, expect=1)
+ex('pe_csv_nonl', PE_CSV, PE_CSV_NONL_IN)
+ex('pe_csv_blank', PE_CSV, PE_CSV_BLANK_IN, expect=1)
 ex('pe_csv_naive', PE_CSV_NAIVE, PE_CSV_IN, mode='check', expect=2)
 ex('pe_csv_naive_strict', PE_CSV_NAIVE, PE_CSV_IN, flags=['--strict'], expect=1)
 ex('pe_tsv', PE_TSV, PE_TSV_IN)
@@ -485,4 +491,8 @@ chk('recipe app is free of ambiguity and repeated keys (--strict succeeds)', PE_
 chk('recipe chg is free of ambiguity and repeated keys (--strict succeeds)', PE_CHG, PE_CHG_IN, 'OK', '--strict')
 chk('recipe mail is free of ambiguity and repeated keys (--strict succeeds)', PE_MAIL, PE_MAIL_IN, 'OK', '--strict')
 chk('recipe tsvt is free of ambiguity and repeated keys (--strict succeeds)', PE_TSV_TYPED, PE_TSV_IN, 'OK', '--strict')
+chk('recipe csv: no final line break, last field empty', PE_CSV, 'a,b\n1,\n2,', '[{"a":"1","b":""},{"a":"2","b":""}]', '--strict')
+chk('recipe csv: final line break, last field empty (no phantom row)', PE_CSV, 'a,b\n1,\n2,\n', '[{"a":"1","b":""},{"a":"2","b":""}]', '--strict')
+chk('recipe csv: no final line break, all filled', PE_CSV, 'a,b\n1,x\n2,y', '[{"a":"1","b":"x"},{"a":"2","b":"y"}]', '--strict')
+chk('recipe csv: final line break, all filled', PE_CSV, 'a,b\n1,x\n2,y\n', '[{"a":"1","b":"x"},{"a":"2","b":"y"}]', '--strict')
 chk('recipe csv accepts CRLF line breaks', PE_CSV, 'id,name\r\n1,Ada\r\n', '[{"id":"1","name":"Ada"}]', '--strict')
