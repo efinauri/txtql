@@ -1,0 +1,231 @@
+-- allium: 3
+-- editor.allium
+--
+-- Editor support: `txtql lsp` is a language server for any editor that speaks the
+-- Language Server Protocol. It shows the same errors and warnings as `txtql check`, and
+-- gives highlighting, navigation, rename, hover, completion and an outline. It keeps working
+-- on unfinished queries: highlighting and navigation survive syntax errors.
+--
+-- Scope: open documents, published diagnostics and the editor requests.
+-- Excludes: protocol framing and transport, editor-specific installation
+--           (editors/sublime: syntax colours, comment toggling, client settings).
+-- Distilled from src/lsp.rs, src/analysis.rs, tests/lsp.rs, tests/editors.rs.
+
+use "./language.allium" as lang
+use "./diagnostics.allium" as diag
+use "./compilation.allium" as comp
+
+------------------------------------------------------------
+-- Contracts
+------------------------------------------------------------
+
+-- What the server knows about a query that may not parse.
+contract QueryAnalysis {
+    analyse: (text: String) -> DocumentAnalysis
+
+    @invariant TolerantOfErrors
+        -- The analysis works on the token stream, which tolerates errors: a bad string runs
+        -- to its closing quote or the end of its line, an unexpected character is skipped.
+        -- Definitions are found from `name =`, `ALIAS name =` and `STRICT name =`, so names
+        -- resolve and highlight even when the query does not parse.
+
+    @invariant Sections
+        -- Each token belongs to the pattern, WHERE or AS section of a definition (or to the
+        -- part before the first definition). In a WHERE section, `name = ...` right after
+        -- WHERE, AND, OR, NOT or `(` is a comparison, not a new definition.
+
+    @invariant NameResolution
+        -- In patterns, a name is a rule or alias reference; `name:` defines a label; `n`
+        -- after TO is a keyword. In WHERE and AS, a name before `(` is a function, after `.`
+        -- a field (never resolved), `true` / `false` / `null` constants, the name between
+        -- FOR and IN a loop variable; any other name is a capture, resolved first to a loop
+        -- variable, then to a label of the same definition, then to a rule referenced in it
+        -- (its implicit capture). Labels and loop variables are scoped to their definition.
+
+    @invariant TokenKinds
+        -- Every token is classified for highlighting as a comment, string, number, keyword,
+        -- primitive, rule, alias, label, capture, loop variable, function, field or constant;
+        -- definitions are marked as declarations. Tokens spanning lines are split per line.
+
+    @invariant Hover
+        -- Hovering a rule or alias shows its definition and the `--` comment lines directly
+        -- above it (no blank line in between); a label or capture shows the full labelled
+        -- pattern (when the query parses); a keyword, primitive or function shows its
+        -- documentation; a loop variable says it is one item at a time. Function
+        -- documentation agrees with lang/TemplateEvaluation: JOIN's is `JOIN(list, separator)`,
+        -- with the separator required and no default.
+
+    @invariant Completion
+        -- Completion depends on the section: before any definition, ALIAS and STRICT; in a
+        -- pattern, primitives, pattern keywords, every rule and alias name, and ALIAS / STRICT
+        -- to start the next definition; in WHERE, the definition's captures, the functions and
+        -- condition keywords; in AS, captures, functions, template keywords (FOR, IN, LISTOF),
+        -- the constants, and ALIAS / STRICT.
+
+    @invariant Positions
+        -- Positions follow the protocol: lines and UTF-16 columns; positions past the end of
+        -- a line clamp to its end.
+}
+
+------------------------------------------------------------
+-- External Entities
+------------------------------------------------------------
+
+-- The analysis of one version of a document (see QueryAnalysis).
+external entity DocumentAnalysis {}
+
+------------------------------------------------------------
+-- Entities and Variants
+------------------------------------------------------------
+
+-- A query open in the editor. Documents are synchronised in full on every change.
+entity Document {
+    uri: String
+    text: String
+    version: Integer
+    analysis: DocumentAnalysis
+    status: open | closed
+
+    transitions status {
+        open -> closed
+        terminal: closed
+    }
+}
+
+------------------------------------------------------------
+-- Rules
+------------------------------------------------------------
+
+-- Opening or changing a document re-analyses it and publishes the diagnostics `txtql check`
+-- would report for it (without a sample input): the syntax error, or every static error and
+-- lint, with codes, related places and the help text.
+rule DocumentOpened {
+    when: DocumentOpened(editor, uri, text, version)
+    ensures: Document.created(uri: uri, text: text, version: version, analysis: analyse(text), status: open)
+}
+
+rule PublishOpenedDiagnostics {
+    when: document: Document.created
+    ensures: DiagnosticsPublished(document: document, diagnostics: check_diagnostics(document.text), version: document.version)
+}
+
+rule DocumentChanged {
+    when: DocumentChanged(editor, document, text, version)
+    requires: document.status = open
+    ensures: document.text = text
+    ensures: document.version = version
+    ensures: document.analysis = analyse(text)
+    ensures: DiagnosticsPublished(document: document, diagnostics: check_diagnostics(text), version: version)
+}
+
+-- Closing a document clears its diagnostics.
+rule DocumentClosed {
+    when: DocumentClosed(editor, document)
+    requires: document.status = open
+    ensures: document.status = closed
+    ensures: DiagnosticsPublished(document: document, diagnostics: [], version: document.version)
+}
+
+-- Go to definition: a rule or alias reference goes to its definition, a capture to its label
+-- (or to the referenced rule for an implicit capture), a loop variable to its FOR.
+rule GoToDefinition {
+    when: DefinitionRequested(editor, document, position)
+    requires: document.status = open
+    ensures: DefinitionShown(document: document, target: definition_at(document.analysis, position))
+}
+
+-- Find references and highlight occurrences list every place that names the same thing,
+-- the definition included (the definition is marked as the write). A rule's references
+-- include the captures that use its implicit capture.
+rule FindReferences {
+    when: ReferencesRequested(editor, document, position, include_declaration)
+    requires: document.status = open
+    ensures: ReferencesShown(document: document, places: references_at(document.analysis, position, include_declaration))
+}
+
+-- Rename works for rules, aliases, labels and loop variables, but not for the root TEXT.
+-- The new name must be an identifier that is not a keyword. Renaming a rule also renames
+-- the captures that use its implicit capture.
+rule RenameName {
+    when: RenameRequested(editor, document, position, new_name)
+    requires: document.status = open
+    requires: is_identifier(new_name) and not is_keyword(new_name)
+    requires: is_renamable(document.analysis, position)
+    ensures: NameRenamed(document: document, edits: rename_edits(document.analysis, position, new_name))
+}
+
+rule ShowHover {
+    when: HoverRequested(editor, document, position)
+    requires: document.status = open
+    ensures: HoverShown(document: document, text: hover_at(document.analysis, position))
+}
+
+rule OfferCompletions {
+    when: CompletionRequested(editor, document, position)
+    requires: document.status = open
+    ensures: CompletionsShown(document: document, items: completions_at(document.analysis, position))
+}
+
+-- The outline lists rules and aliases in order, each with its labels.
+rule ShowOutline {
+    when: OutlineRequested(editor, document)
+    requires: document.status = open
+    ensures: OutlineShown(document: document, symbols: outline(document.analysis))
+}
+
+rule ShowSemanticTokens {
+    when: TokensRequested(editor, document)
+    requires: document.status = open
+    ensures: TokensShown(document: document, tokens: semantic_tokens(document.analysis))
+}
+
+------------------------------------------------------------
+-- Actor Declarations
+------------------------------------------------------------
+
+actor EditorClient {
+    identified_by: comp/Client where speaks_language_server_protocol(this)
+}
+
+------------------------------------------------------------
+-- Surfaces
+------------------------------------------------------------
+
+surface LanguageServer {
+    facing editor: EditorClient
+
+    context document: Document
+
+    exposes:
+        document.text
+        document.version
+
+    provides:
+        DocumentOpened(editor, uri, text, version)
+        DocumentChanged(editor, document, text, version) when document.status = open
+        DocumentClosed(editor, document) when document.status = open
+        DefinitionRequested(editor, document, position) when document.status = open
+        ReferencesRequested(editor, document, position, include_declaration) when document.status = open
+        RenameRequested(editor, document, position, new_name) when document.status = open
+        HoverRequested(editor, document, position) when document.status = open
+        CompletionRequested(editor, document, position) when document.status = open
+        OutlineRequested(editor, document) when document.status = open
+        TokensRequested(editor, document) when document.status = open
+
+    contracts:
+        fulfils QueryAnalysis
+        fulfils diag/DiagnosticPresentation
+
+    @guarantee UnknownRequestsFailPolitely
+        -- Unsupported requests get a "method not found" error; requests about documents the
+        -- server does not know answer with nothing. A rename to an invalid name is rejected
+        -- with an error naming it.
+
+    @guarantee SameDiagnosticsAsCheck
+        -- The diagnostics shown in the editor are exactly those `txtql check` reports for the
+        -- query, including warnings as warnings.
+
+    @guarantee EditorFilesFollowTheLanguage
+        -- The bundled editor syntax knows every keyword and every function of the language,
+        -- and its language-server settings run `txtql lsp` for `*.tql` files.
+}

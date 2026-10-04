@@ -1,0 +1,2 @@
+TEXT  = 1 TO n field AS { field }
+field = key:(ANY UNTIL ': ') value:(ANY UNTIL NL) AS { key: value }

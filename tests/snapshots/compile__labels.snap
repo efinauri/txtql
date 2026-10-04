@@ -1,0 +1,31 @@
+---
+source: tests/compile.rs
+assertion_line: 34
+expression: "dump(\"r = WORD\\nTEXT = x:WORD y:r z:(WORD WORD) w:(v:WORD)\")"
+---
+nt0 rule `r` (Rule(0)) start=s0
+  s0
+    -> s2 WORD
+  s2 accept
+nt1 rule `TEXT` (Rule(1)) start=s1
+  names: [["x", "y", "z", "w"]]
+  s1
+    -> s9 WORD as x
+  s8 accept
+  s9
+    -> s10 nt0 as y
+  s10
+    -> s11 nt2 as z
+  s11
+    -> s8 nt3 as w
+nt2 group (Group) start=s3
+  s3
+    -> s5 WORD
+  s4 accept
+  s5
+    -> s4 WORD
+nt3 group (Group) start=s6
+  names: [["v"]]
+  s6
+    -> s7 WORD as v
+  s7 accept

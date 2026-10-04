@@ -1,0 +1,41 @@
+-- NASA Kennedy Space Center web server log, July 1995: https://ita.ee.lbl.gov/html/contrib/NASA-HTTP.html
+-- ("The traces may be freely redistributed.") One log format, but the requests come in many
+-- shapes, and each gets its own rule and its own JSON.
+TEXT = 1 TO n entry
+
+entry = host:(ip_host OR named_host) ' - - [' time:(ANY UNTIL ']') ' "'
+        method:WORD sp target:(click OR search OR query OR plain)
+        0 TO 1 (sp protocol:(ANY UNTILBEFORE ('"' OR 'From:'))) 0 TO 1 leak '" '
+        status:INT sp bytes:(size OR no_size) NL
+    AS { host, 'time': time, 'method': method, target,
+         'protocol': TRIM(protocol), 'leaked_email': leak,
+         'status': NUM(status), 'bytes': bytes }
+
+-- Who: an IP address becomes its four numbers, a host name stays text. (INT, not FLOAT:
+-- FLOAT would read `199.72` as a decimal.)
+ip_host    = a:INT '.' b:INT '.' c:INT '.' d:INT
+    AS { 'ip': [ NUM(a), NUM(b), NUM(c), NUM(d) ] }
+-- A host name is anything up to the space that contains a letter (`007.thegap.com` is one too),
+-- so it can never be mistaken for an IP address.
+named_host = name:(ANY UNTILBEFORE (LETTER OR ' ') LETTER ANY UNTILBEFORE ' ') AS { 'name': name }
+
+-- What: clicks on an image map, full-text searches, CGI query strings, plain paths.
+click  = path:(ANY UNTILBEFORE ('?' OR end)) '?' x:coord ',' y:coord
+    AS { 'path': path, 'click': { 'x': NUM(x), 'y': NUM(y) } }
+search = path:'/htbin/wais.pl' '?' 1 TO n words:(ANY UNTILBEFORE ('+' OR end)) SPLITBY '+'
+    AS { 'path': path, 'search': words }
+query  = path:(ANY UNTILBEFORE ('?' OR end)) '?' 1 TO n params:param SPLITBY '&'
+    AS { 'path': path, 'params': { params } }
+param  = key:(ANY UNTILBEFORE ('=' OR '&' OR end)) '=' value:(ANY UNTILBEFORE ('&' OR end)) AS { key: value }
+plain  = path:(ANY UNTILBEFORE (end OR '?')) AS { 'path': path }
+
+-- Some clients sent HTTP/0.9 requests (no protocol), and one leaked its user's email address.
+leak   = 'From:' 1 TO n sp '<' email:(ANY UNTILBEFORE ('>' OR end)) '>' AS email
+
+size    = n:INT AS NUM(n)
+no_size = '-'   AS null
+
+ALIAS sp    = ' '
+ALIAS end   = (' ' OR '"')
+-- Image-map clicks can land outside the image, so coordinates may be negative (`?436,-39`).
+ALIAS coord = 0 TO 1 '-' INT

@@ -1,0 +1,22 @@
+=== playtest 2026-09-30 build 0.9.3-beta (win64) tester=mira ===
+[00:00:00.000] INFO  boot: loaded scene "MainMenu" in 1.84s
+[00:00:01.250] DEBUG input: click at (0, 0) button=left
+[00:00:01.900] DEBUG input: click at (960, 540) button=left
+[00:00:02.004] INFO  boot: loaded scene "Forest_01" in 3.2s
+[00:00:02.500] DEBUG input: key W down
+[00:00:03.120] DEBUG player: pos=(12.5, -3.25, 0) hp=100/100
+[00:00:03.800] DEBUG input: key W up
+[00:00:04.000] WARN  render: fps dropped to 23 (target 60) in scene "Forest_01"
+[00:00:05.310] ERROR assets: asset missing: textures/rock_02.png
+[00:00:06.000] INFO  quest: started #17 "The Lost Key"
+[00:00:07.777] DEBUG input: click at (1919, 1079) button=right
+[00:00:08.100] WARN  player: damage 25 from goblin#4 hp=75/100
+[00:00:08.950] WARN  player: damage 10 from fall hp=65/100
+[00:00:09.020] DEBUG input: click at (-4, 12) button=left
+[00:00:09.500] INFO  quest: completed #17 "The Lost Key" reward=250xp
+[00:00:10.000] ERROR physics: crash in Physics::step (NaN velocity)
+  at src/physics/solver.rs:212
+  at src/physics/world.rs:88
+  at src/game/loop.rs:40
+[00:00:10.100] INFO  boot: loaded scene "MainMenu" in 0.9s
+=== end: 612 frames, avg fps 57.4 ===

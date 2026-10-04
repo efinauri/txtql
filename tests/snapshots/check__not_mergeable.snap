@@ -1,0 +1,13 @@
+---
+source: tests/check.rs
+expression: "compile_err(\"TEXT = user:WORD AS { user }\")"
+---
+txtql::check::not_mergeable
+
+  × only objects can be merged, but `user` is text
+   ╭─[query:1:23]
+ 1 │ TEXT = user:WORD AS { user }
+   ·                       ──┬─
+   ·                         ╰── not an object
+   ╰────
+  help: an entry without a key is merged; to put the value under a key, write `'user': user`

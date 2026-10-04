@@ -1,0 +1,13 @@
+txtql::input::ambiguous
+
+  × ambiguous match in rule `TEXT`: the text can be read in two ways with different results
+   ╭─[input.txt:1:1]
+ 1 │ one two three
+   · ───┬───┬
+   ·    │   ╰── alternative: `first` = "one"
+   ·    ╰── chosen: `first` = "one two"
+   ╰────
+  help: txtql picked the first reading, which gives {"first":"one two","rest":"three"}; the other
+        gives {"first":"one","rest":"two three"}.
+        Make the pattern more specific (literals, SPLITBY, LAZY) if the other reading was
+        intended.

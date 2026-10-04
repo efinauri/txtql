@@ -1,0 +1,555 @@
+-- allium: 3
+-- language.allium
+--
+-- The txtql query language: what a query is made of and what each construct means.
+-- A query is a list of rules (plus aliases) that describe the whole input text; the
+-- `TEXT` rule is the root. Each rule may say how its match becomes JSON (`AS`).
+--
+-- Scope: syntax tree, pattern semantics (primitives, repetitions, stops), capture scoping,
+--        default values, templates (`AS`) and conditions (`WHERE`).
+-- Excludes: the lifecycle of compiling and running a query (compilation.allium,
+--           running.allium), diagnostics (diagnostics.allium), editor support (editor.allium).
+-- Distilled from src/ast.rs, src/lexer.rs, src/parser.rs, src/input.rs, src/ir.rs,
+-- src/eval.rs and their tests. SPEC.md was deliberately not consulted.
+
+------------------------------------------------------------
+-- Value Types
+------------------------------------------------------------
+
+-- A location in the query or input text. Diagnostics point at spans.
+value Span {
+    start: Integer
+    end: Integer
+}
+
+-- The text a query is run against. Every character is significant: nothing is skipped
+-- implicitly, including the final line break. Positions count characters, not bytes.
+value InputText {
+    text: String
+}
+
+-- A JSON value produced by a template, a capture or a default value.
+value JsonValue {
+    kind: JsonKind
+}
+
+-- One entry of an object template.
+--   `key: value`                  key present, collect_all = false
+--   `key: LISTOF value`           collect_all = true
+--   `name` (no key)               a merge entry: key absent
+--   `... FOR var [IN source]`     iteration present
+value ObjectEntry {
+    key: Template?
+    value: Template
+    collect_all: Boolean
+    iteration: Iteration?
+}
+
+-- One element of an array template: `value` or `value FOR var [IN source]`.
+value ArrayElement {
+    value: Template
+    iteration: Iteration?
+}
+
+-- `FOR var` iterates the capture named `var`; `FOR var IN source` iterates any list.
+value Iteration {
+    variable: String
+    source: Template?
+}
+
+------------------------------------------------------------
+-- Contracts
+------------------------------------------------------------
+
+-- What each built-in primitive matches at a position of the input. `match_end` is the
+-- position after the match, or null when the primitive does not match there.
+contract PrimitiveMatching {
+    match_end: (primitive: PrimitiveKind, input: InputText, position: Integer) -> Integer?
+
+    @invariant WordIsAWholeLetterRun
+        -- WORD matches a maximal run of letters (combining marks belong to the letter
+        -- before them). It never starts or ends inside a run: in `abc1`, `ab` is not a
+        -- WORD. Digits and apostrophes end a run (`don't` holds the WORDs `don` and `t`).
+
+    @invariant FloatIsAWholeNumberRun
+        -- FLOAT matches a maximal run of ASCII digits with an optional `.digits` part
+        -- (`42`, `3.5`). No sign, no exponent. `1.2.3` reads as FLOAT `1.2`, then `.`,
+        -- then FLOAT `3`.
+
+    @invariant IntIsAWholeDigitRun
+        -- INT matches a maximal run of ASCII digits that is not preceded or followed by
+        -- another digit. `3.14` holds two INTs. Letters may follow an INT (`12kg`).
+
+    @invariant HexAndBinAreDelimitedRuns
+        -- HEX matches a run of hexadecimal digits and BIN a run of `0`/`1`, each not
+        -- preceded by a digit of its own kind and not followed by any letter or digit
+        -- (`'0x' HEX`, `cafeteria` is not a HEX, `102` is not a BIN).
+
+    @invariant Ipv4IsADottedQuad
+        -- IPV4 matches four INTs of at most three digits, each at most 255, separated by
+        -- dots, not preceded by a dot and not continuing as a longer dotted number
+        -- (`1.2.3.4.5` and `256.1.1.1` are not IPV4).
+
+    @invariant Ipv6IsTheLongestAddress
+        -- IPV6 matches the longest RFC 4291 text-form address at the position (hex groups,
+        -- at most one `::`, an optional dotted IPv4 tail following the IPV4 rules), not
+        -- preceded by a letter, digit, `:` or `.`, and not followed by a letter or digit.
+        -- A trailing `:` is not part of it; a time such as `10:30:00` is not an address.
+
+    @invariant SingleCharacterPrimitives
+        -- LETTER: one letter with any combining marks after it, also inside a run.
+        -- DIGIT: one ASCII digit, also inside a run (`1 TO n DIGIT` splits `987`).
+        -- PUNCT: one character that is not a letter, digit or whitespace.
+        -- ANY: any one character, line breaks included.
+        -- TAB: one tab character.
+
+    @invariant LineBreaks
+        -- NL matches `\r\n`, `\n` or a lone `\r`, always as one line break.
+
+    @invariant LineIsAWholeLine
+        -- LINE matches from the start of a line (start of the text, or after a line break)
+        -- up to but excluding the next line break or the end of the text. A line may be
+        -- empty. The position between `\r` and `\n` is not a line start.
+
+    @invariant ZeroWidthPrimitives
+        -- ROW and COL match empty text anywhere; their value is the current line number and
+        -- column, both counted from 1, columns in characters. EOF matches empty text at the
+        -- end of the input only.
+
+    @invariant Literals
+        -- A quoted literal matches exactly its text. `i'text'` ignores case using simple
+        -- per-character lower-casing, not full Unicode case folding (`ß` does not match
+        -- `SS`).
+}
+
+-- How a repetition `min TO max [LAZY] item [SPLITBY sep] [SKIPPING skip]
+-- [UNTIL | UNTILBEFORE stop]` matches.
+contract RepetitionMatching {
+    iterations: (repetition: RepetitionPattern, input: InputText, position: Integer) -> Set<Integer>
+    stop_end: (stop: Pattern, placement: StopPlacement, input: InputText, position: Integer) -> Integer?
+
+    @invariant Bounds
+        -- Between `min` and `max` items; `n` means no upper limit. `0 TO 0 p` never runs.
+
+    @invariant Separators
+        -- With SPLITBY, a separator sits between consecutive items, never before the first
+        -- or after the last.
+
+    @invariant Skipping
+        -- With SKIPPING, text matching the skip pattern may appear before, between and after
+        -- the items (also around a separator). Skipping is only used where nothing else fits.
+
+    @invariant StopIsRequired
+        -- With UNTIL or UNTILBEFORE, the repetition ends at the first position where the stop
+        -- matches, checked wherever an iteration would begin (before the separator if there
+        -- is one). The stop must be present: a repetition with a stop cannot end where its
+        -- stop does not match. UNTILBEFORE leaves the stop for what follows; UNTIL consumes it.
+
+    @invariant UntilConsumesTheLongestStop
+        -- UNTIL consumes the longest match of its stop, whatever the order of its
+        -- alternatives, even if the rest of the query would need a shorter one. How much of
+        -- the stop is taken never creates a second reading.
+
+    @invariant ShortForm
+        -- `p UNTIL s` and `p UNTILBEFORE s` written without bounds mean `0 TO n p UNTIL s`
+        -- and `0 TO n p UNTILBEFORE s`. A label written before the short form labels the item
+        -- `p`, not the repetition: `k:ANY UNTILBEFORE '='` repeats `k:ANY`.
+
+    @invariant StopsNeverInValues
+        -- A stop is never part of any value, including the text captured by a label on the
+        -- repetition.
+
+    @invariant StopsMatchAnywhereTheyCan
+        -- A stop is matched as a whole wherever it begins: a sequence or repetition inside a
+        -- stop matches if any of its readings does. EOF inside a stop matches only at the end.
+}
+
+-- Which part of a match a capture name refers to, and what value it holds.
+contract CaptureScoping {
+    captures: (rule: QueryRule) -> Set<String>
+
+    @invariant WhatIsCaptured
+        -- A rule's captures are its labels (`name:pattern`) and the rules it references,
+        -- each captured under the rule's own name. Aliases never capture, neither as
+        -- themselves nor through labels or rules inside them.
+
+    @invariant LabelsBindTheNearestPattern
+        -- A label takes the nearest pattern after it; parentheses extend it. A label on a
+        -- repetition captures the text the repetition matched (separators and skipped text
+        -- included, a consumed stop excluded); a label on the repeated item captures a list.
+
+    @invariant RepetitionsMakeLists
+        -- A capture inside a repetition whose maximum is more than one is a list of the
+        -- per-item values, even with one item. A capture inside a repetition with at most one
+        -- item (`0 TO 1`, `1 TO 1`) is that item's value, or null when absent.
+
+    @invariant UntakenBranchesAreNull
+        -- A capture in an OR branch that was not taken is null in templates and conditions.
+        -- A default value object only lists the captures of the branch that was taken.
+
+    @invariant ParenthesesDoNotScope
+        -- Parentheses group without creating a scope; a label does: captures inside a
+        -- labelled pattern belong to the label's value, not to the enclosing rule.
+
+    @invariant SeparatorsSkipsAndStopsCaptureNothing
+        -- Labels and rule references inside SPLITBY, SKIPPING and stop patterns contribute
+        -- no captures; their text is matched but dropped.
+
+    @invariant RowAndColAreNumbers
+        -- A captured ROW or COL is a number; every other primitive, literal or alias match is
+        -- the matched text.
+}
+
+-- The value of a rule without `AS`, of a labelled group and of a repetition item.
+contract DefaultValues {
+    default_value: (pattern: Pattern, match_text: String) -> JsonValue
+
+    @invariant DefaultValueOrder
+        -- The first case that applies:
+        -- 1. a single unlabelled repetition: the list of its items' values (for a
+        --    repetition with at most one item: the item's value, or null);
+        -- 2. a single unlabelled rule reference: that rule's value;
+        -- 3. a body (OR branch) with captures: an object of those captures, in order;
+        -- 4. a single parenthesised group: that group's value;
+        -- 5. otherwise: the matched text.
+
+    @invariant AliasValueIsText
+        -- An alias used where a value is needed (labelled, or as a repetition item) is worth
+        -- the text it matched.
+}
+
+-- Building output from an `AS` template.
+contract TemplateEvaluation {
+    evaluate: (template: Template, captures: Set<String>) -> JsonValue
+    apply_entry: (entry: ObjectEntry, captures: Set<String>) -> JsonValue
+    expand_element: (element: ArrayElement, captures: Set<String>) -> List<JsonValue>
+    call: (function: TemplateFunction, arguments: List<JsonValue>) -> JsonValue
+
+    @invariant QuotedIsLiteralBareIsCapture
+        -- A quoted string is always a literal and a bare name always a capture, both for
+        -- keys and for values: `{ 'nouns': ... }` has a fixed key, `{ noun: colors }` uses the
+        -- matched noun as the key. Literals: text, numbers (with exponent), `true`, `false`,
+        -- `null` (in any case). Because these constants are recognised in any case, no rule,
+        -- alias, label or FOR loop variable may be named after them (see
+        -- Lexicon.ReservedConstantNames).
+
+    @invariant Paths
+        -- `name.field.field` reads fields of object values. A field of null is null; a
+        -- missing field is null; a field of any other non-object is an evaluation error.
+        -- A name that is captured nowhere at run time reads as null.
+
+    @invariant ObjectKeys
+        -- Keys must evaluate to text; numbers and booleans are written as text; null, lists
+        -- and objects are an evaluation error. Key order follows the template.
+
+    @invariant RepeatedKeysKeepTheLaterValue
+        -- Setting a key a second time (by entries, iterations or merges) keeps the later value
+        -- and records a repeated-key report naming the entry, once per entry per run. ZIP
+        -- behaves the same: a key that appears twice in its keys keeps the later value and
+        -- records a repeated-key report naming the ZIP call, once per call per run; it is a
+        -- warning in plain runs and an error in strict runs, like any repeated key. With
+        -- LISTOF, every value for the key is collected into a list (always a list) and no
+        -- report is made while only LISTOF entries set it. Reports come from AS templates,
+        -- which build the output; an object or ZIP built inside a WHERE condition keeps the
+        -- later value the same way but is not reported.
+
+    @invariant MergeEntries
+        -- An entry without a key merges the object, or every object of a list of objects,
+        -- into the object being built. Null (and null list items) add nothing. Merging text,
+        -- numbers or booleans is an error.
+
+    @invariant Iteration
+        -- `FOR var` iterates the list captured as `var`; `FOR var IN source` iterates any
+        -- list. Inside, `var` is the item and, when the item is an object, its fields are
+        -- names too; inner names shadow outer ones. Iterating null yields nothing; iterating
+        -- any other non-list is an error.
+
+    @invariant Functions
+        -- NUM(x): text (trimmed) or number to a number; null stays null; anything else
+        --   that is not a finite number is an error.
+        -- LOWER, UPPER, TRIM: text to text; null stays null; other values are an error.
+        -- COUNT(x): number of items of a list (or keys of an object); null counts 0.
+        -- FIRST(x), LAST(x): first or last item of a list, null when empty or null.
+        -- JOIN(list, sep): items joined with sep, which must always be given (there is no
+        --   default separator; leaving it out is a static error, txtql::check::arity) and must
+        --   be text; numbers become text, nulls are skipped, booleans, nested lists or objects
+        --   are an error; text passes through; null stays null; anything else is an error.
+        --   JOIN is text-only by design: an unquoted boolean in the list (`JOIN([true, 'a'],
+        --   ',')`) is an error, while a quoted literal such as 'true' is text and joins.
+        --   Object keys and ZIP keys, by contrast, write booleans as text because keys must be
+        --   strings (see ObjectKeys); the difference is intended.
+        -- ZIP(keys, values): object pairing each key with the value at the same position;
+        --   null keys or values count as an empty list; missing values are null, extra values
+        --   are an error, keys must be text, numbers or booleans; a repeated key is reported
+        --   (see RepeatedKeysKeepTheLaterValue).
+        -- Function names are case-insensitive.
+}
+
+-- Deciding whether a match satisfies its rule's `WHERE` condition.
+contract ConditionEvaluation {
+    holds: (condition: Condition, captures: Set<String>) -> Boolean
+    compare: (left: JsonValue, op: CompareOp, right: JsonValue) -> Boolean
+
+    @invariant Truthiness
+        -- A bare value is true unless it is null, false, empty text, an empty list or an
+        -- empty object. The number 0 is true.
+
+    @invariant Equality
+        -- `=` and `!=` compare numerically when at least one side is a number and both
+        -- convert to numbers (`'42' = 42`); otherwise they compare the values exactly. Two
+        -- texts are always compared as exact text, even when both look numeric: `'10' =
+        -- '10.0'` is false. (Unlike the ordering operators, equality never reads numeric
+        -- text as a number unless the other side is a number.)
+
+    @invariant Ordering
+        -- `<`, `<=`, `>`, `>=` compare numerically when both sides are numbers or numeric
+        -- text; two texts otherwise compare by code point; anything else is an error.
+
+    @invariant TextOperators
+        -- `CONTAINS`: text contains text, a list contains an exactly equal value (no numeric
+        -- conversion: `['42'] CONTAINS 42` is false), or an object has the key. `STARTSWITH`, `ENDSWITH`: text on both sides. A null left side is false;
+        -- other combinations are an error.
+
+    @invariant Connectives
+        -- AND, OR and NOT short-circuit left to right; NOT binds tighter than AND, AND
+        -- tighter than OR.
+}
+
+-- Spelling rules of the query text.
+contract Lexicon {
+    is_keyword: (word: String) -> Boolean
+
+    @invariant KeywordsInAnyCase
+        -- Keywords, primitive names and function names are recognised in any case (`WORD`,
+        -- `word`, `Word`). In return, keywords cannot be rule names, alias names or labels.
+
+    @invariant ReservedConstantNames
+        -- `true`, `false` and `null`, in any case, are template constants and so cannot name
+        -- a rule, an alias, a label or a FOR loop variable (a rule, label or loop variable so
+        -- named could never be referenced from WHERE or AS; aliases, sharing the namespace,
+        -- follow the same rule). Using one is a static error (txtql::check::reserved_name),
+        -- e.g. `[ x FOR true IN w ]`. Field names after `.` are not affected
+        -- (see FieldNamesAreFree).
+
+    @invariant RootName
+        -- The root rule is named TEXT in any case; every spelling is the same name. The name
+        -- is not otherwise reserved: a capture may be called `text`.
+
+    @invariant Strings
+        -- Literals are quoted with `'` or `"`, may span lines, and support the escapes
+        -- `\n`, `\t`, `\r`, `\\`, `\'` and `\"`. `i'...'` marks a case-insensitive literal.
+
+    @invariant Comments
+        -- `--` starts a comment that runs to the end of the line.
+
+    @invariant Identifiers
+        -- Names start with a letter or `_` and continue with letters, digits or `_`;
+        -- Unicode letters are allowed.
+
+    @invariant FieldNamesAreFree
+        -- After `.` in a template path any word is a field name, keywords included, since
+        -- fields come from the data.
+}
+
+------------------------------------------------------------
+-- Enumerations
+------------------------------------------------------------
+
+enum PrimitiveKind {
+    word | float | int | hex | bin | ipv4 | ipv6 | punct | any | digit | letter
+    | line | nl | tab | row | col | eof
+}
+
+-- UNTILBEFORE leaves the stop for what follows; UNTIL consumes it.
+enum StopPlacement { until_before | until }
+
+enum CompareOp { eq | not_eq | lt | le | gt | ge | contains | starts_with | ends_with }
+
+enum TemplateFunction { num | lower | upper | trim | count | first | last | join | zip }
+
+enum JsonKind { null_value | boolean | number | text | list | object }
+
+------------------------------------------------------------
+-- Entities and Variants
+------------------------------------------------------------
+
+-- A parsed query: rules and aliases, definable in any order. Rules and aliases share one
+-- namespace.
+entity Query {
+    source: String
+    rules: QueryRule with query = this
+    aliases: Alias with query = this
+
+    roots: rules where is_root
+}
+
+-- `[STRICT] name = pattern [WHERE condition] [AS template]`.
+-- WHERE, if present, comes before AS; each appears at most once.
+entity QueryRule {
+    query: Query
+    name: String
+    strict: Boolean
+    pattern: Pattern
+    condition: Condition?
+    template: Template?
+
+    is_root: is_root_name(name)
+}
+
+-- `ALIAS name = pattern`: a named pattern fragment, used as if its pattern were written in
+-- parentheses at the use site, except that it never captures anything. It has no WHERE
+-- and no AS.
+entity Alias {
+    query: Query
+    name: String
+    pattern: Pattern
+}
+
+entity Pattern {
+    span: Span
+    kind: LiteralPattern | PrimitivePattern | ReferencePattern | LabelledPattern
+        | SequencePattern | AlternativesPattern | RepetitionPattern
+}
+
+-- `'text'`, `"text"`, `i'text'`.
+variant LiteralPattern : Pattern {
+    text: String
+    case_insensitive: Boolean
+}
+
+variant PrimitivePattern : Pattern {
+    primitive: PrimitiveKind
+}
+
+-- A rule or alias name.
+variant ReferencePattern : Pattern {
+    name: String
+}
+
+-- `label:pattern`.
+variant LabelledPattern : Pattern {
+    label: String
+    inner: Pattern
+}
+
+-- `a b c`: each part matched one after the other.
+variant SequencePattern : Pattern {
+    parts: List<Pattern>
+}
+
+-- `a OR b OR c`. OR binds looser than sequence.
+variant AlternativesPattern : Pattern {
+    branches: List<Pattern>
+}
+
+-- `min TO max [LAZY] item [SPLITBY sep] [SKIPPING skip] [UNTIL | UNTILBEFORE stop]`.
+-- The clauses come in any order, each at most once. `max` absent means `n` (unlimited).
+variant RepetitionPattern : Pattern {
+    min: Integer
+    max: Integer?
+    lazy: Boolean
+    item: Pattern
+    separator: Pattern?
+    skipping: Pattern?
+    stop: Pattern?
+    stop_placement: StopPlacement?
+
+    single_valued: max != null and max <= 1
+}
+
+entity Template {
+    span: Span
+    kind: ConstantTemplate | PathTemplate | CallTemplate | ObjectTemplate | ArrayTemplate
+}
+
+-- `'x'`, `1`, `-2.5`, `1e-8`, `true`, `false`, `null`.
+variant ConstantTemplate : Template {
+    constant: JsonValue
+}
+
+-- `name` or `name.field.field`.
+variant PathTemplate : Template {
+    path: List<String>
+}
+
+-- `NUM(x)`, `JOIN(list, sep)`, ...
+variant CallTemplate : Template {
+    function: TemplateFunction
+    arguments: List<Template>
+}
+
+-- `{ k: v, k: LISTOF v FOR x IN xs, name }`.
+variant ObjectTemplate : Template {
+    entries: List<ObjectEntry>
+}
+
+-- `[ a, e FOR x, e FOR x IN xs ]`.
+variant ArrayTemplate : Template {
+    elements: List<ArrayElement>
+}
+
+entity Condition {
+    span: Span
+    kind: AndCondition | OrCondition | NotCondition | ComparisonCondition | TruthyCondition
+}
+
+variant AndCondition : Condition {
+    left: Condition
+    right: Condition
+}
+
+variant OrCondition : Condition {
+    left: Condition
+    right: Condition
+}
+
+variant NotCondition : Condition {
+    inner: Condition
+}
+
+variant ComparisonCondition : Condition {
+    left: Template
+    op: CompareOp
+    right: Template
+}
+
+-- A bare value used as a condition.
+variant TruthyCondition : Condition {
+    value: Template
+}
+
+------------------------------------------------------------
+-- Config
+------------------------------------------------------------
+
+config {
+    -- Largest finite repetition bound.
+    max_repetition_bound: Integer = 10_000
+    -- Maximum nesting of parentheses, repetitions, templates and conditions in a query.
+    max_query_nesting: Integer = 100
+}
+
+------------------------------------------------------------
+-- Invariants
+------------------------------------------------------------
+
+-- Checked statically (txtql::check::bad_bounds, txtql::check::bound_too_large).
+invariant RepetitionBoundsAreValid {
+    for p in Patterns:
+        p.kind = RepetitionPattern implies (
+            p.min <= config.max_repetition_bound
+            and (p.max = null or (p.min <= p.max and p.max <= config.max_repetition_bound))
+        )
+}
+
+-- Checked statically (txtql::check::empty_literal).
+invariant LiteralsAreNonEmpty {
+    for p in Patterns:
+        p.kind = LiteralPattern implies length(p.text) > 0
+}
+
+-- A stop placement is given exactly when a stop is.
+invariant StopPlacementGoesWithStop {
+    for p in Patterns:
+        p.kind = RepetitionPattern implies ((p.stop = null) = (p.stop_placement = null))
+}

@@ -1,0 +1,4 @@
+-- Each line with its number, and the column where its values start.
+TEXT  = 1 TO n entry
+entry = n:ROW key:WORD ':' 0 TO n ' ' c:COL 0 TO n words:WORD SPLITBY ' ' NL
+    AS { 'line': n, 'key': key, 'column': c, 'words': words }

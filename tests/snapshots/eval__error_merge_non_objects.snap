@@ -1,0 +1,23 @@
+---
+source: tests/eval.rs
+expression: "run_err(\"TEXT = 1 TO n p SPLITBY ' ' AS { p }\\np = WORD OR n:INT\", \"a b\")"
+---
+txtql::eval::error
+
+  × only objects can be merged, but the list contains text
+   ╭─[query:1:34]
+ 1 │ TEXT = 1 TO n p SPLITBY ' ' AS { p }
+   ·                                  ┬
+   ·                                  ╰── while evaluating this
+ 2 │ p = WORD OR n:INT
+   ╰────
+  help: an entry without a key is merged; to put the value under a key, write `'p': p`, or give
+        the repeated rule an object template, e.g. `AS { key: value }`
+
+Advice: 
+  ☞ in this part of the input
+   ╭─[input:1:1]
+ 1 │ a b
+   · ─┬─
+   ·  ╰── matched text
+   ╰────

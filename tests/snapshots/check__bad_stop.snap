@@ -1,0 +1,16 @@
+---
+source: tests/check.rs
+expression: "compile_err(\"TEXT = (ANY UNTILBEFORE w)\\nw = WORD\")"
+---
+txtql::check::bad_stop
+
+  × this cannot be the stop of `UNTILBEFORE`
+   ╭─[query:1:25]
+ 1 │ TEXT = (ANY UNTILBEFORE w)
+   ·                         ┬
+   ·                         ╰── not allowed in a stop
+ 2 │ w = WORD
+   ╰────
+  help: a stop is built from literals and primitives (except LINE, ROW and COL), with sequences,
+        OR and repetitions, e.g. `UNTILBEFORE (NL DIGIT OR NL EOF)`; rules and labels are not
+        allowed

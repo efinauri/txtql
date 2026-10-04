@@ -1,0 +1,1 @@
+TEXT = 1 TO n (k:WORD ' = ' v:(WORD OR FLOAT) NL) AS [ NUM(v) FOR v ]

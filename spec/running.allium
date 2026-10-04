@@ -1,0 +1,469 @@
+-- allium: 3
+-- running.allium
+--
+-- Running a compiled query on an input text: match the whole text, pick one reading,
+-- build the JSON output, then look for other readings that would have produced different
+-- output.
+--
+-- Scope: the run lifecycle, limits, disambiguation, failure explanations, ambiguity and
+--        repeated-key reporting, strictness.
+-- Excludes: pattern and template semantics (language.allium), how clients start runs
+--           (txtql.allium).
+-- Distilled from src/lib.rs (Query::run, no_parse), src/earley.rs, src/extract.rs,
+-- src/eval.rs, src/util.rs, tests/disambiguate.rs, tests/eval.rs, tests/stress.rs and the
+-- golden cases.
+
+use "./language.allium" as lang
+use "./diagnostics.allium" as diag
+use "./compilation.allium" as comp
+
+------------------------------------------------------------
+-- Value Types
+------------------------------------------------------------
+
+value RunOptions {
+    -- Work allowed for matching, choosing a reading and evaluating (all share one budget).
+    max_steps: Integer
+    -- Maximum nesting of rule matches inside each other. Only rule matches count: the TEXT
+    -- match is level 1 and each rule match inside another adds a level; groups, aliases and
+    -- repetitions (`0 TO 1 p`, `1 TO n p`) add none. It is a search bound, not an exact
+    -- limit on the chosen reading (see Performance.DepthIsASearchBound); it bounds memory
+    -- only: deep nesting never overflows the stack.
+    max_depth: Integer
+    -- Treat every output-changing ambiguity and every repeated key as an error.
+    strict: Boolean
+    -- Look for output-changing ambiguity at all.
+    check_ambiguity: Boolean
+    -- Separate work allowed for the ambiguity analysis.
+    ambiguity_steps: Integer
+}
+
+------------------------------------------------------------
+-- Contracts
+------------------------------------------------------------
+
+-- Which reading of the input is chosen when there are several. Deterministic.
+contract Disambiguation {
+    chosen_reading: (query: lang/Query, input: lang/InputText) -> ParseTree?
+
+    @invariant EarlierPartsAreGreedy
+        -- Earlier parts of a sequence take as much text as they can while the rest still
+        -- matches. A LAZY repetition takes as little as it can.
+
+    @invariant LeftmostBranchWins
+        -- Among alternatives that cover the same text, the leftmost OR branch wins. An OR
+        -- that is one step of a sequence still prefers its longest match first.
+
+    @invariant RepetitionsPreferAnotherItem
+        -- Repetitions prefer another item over stopping; LAZY reverses this. Optional parts
+        -- (`0 TO 1`) prefer to match. SKIPPING text is only skipped where nothing else fits.
+
+    @invariant WhereRejectsReadings
+        -- A match whose rule's WHERE condition is false does not count: the next reading in
+        -- preference order is tried. If no reading satisfies the conditions, the run fails.
+
+    @invariant ChildrenChosenIndependently
+        -- The preferred reading of a rule, group or repetition over a given stretch of text
+        -- is chosen once, independently of the context that uses it. An enclosing WHERE can
+        -- make a different stretch be chosen, but not a different reading of the same
+        -- stretch. This keeps the search polynomial.
+}
+
+-- Explaining why the text does not match.
+contract NoParseExplanation {
+    explain: (query: lang/Query, input: lang/InputText) -> diag/DiagnosticReport
+
+    @invariant PointsAtTheFurthestPosition
+        -- The error points at the furthest position the matcher reached (the word, number or
+        -- line break there), and lists what was expected there. When the text ended too early
+        -- it points at the last character ("expected X after this"); when the text is empty,
+        -- it says so.
+
+    @invariant ExpectationsNameTheRuleTheyStart
+        -- Each expectation is shown once, with the rules (other than TEXT) it would begin, as
+        -- in "expected '[' (the start of `entry`) or '=== end: ' (the start of `footer`)".
+        -- "Anything but X" expectations from stops are listed only when nothing else is
+        -- expected. "the end of the text" is listed when TEXT already matched up to there.
+        -- At most eight expectations are listed, then "or one of N other things".
+
+    @invariant LineMidLineHint
+        -- When LINE was expected mid-line and the text has not ended, the hint says LINE
+        -- matches whole lines only and suggests `ANY UNTILBEFORE NL` (e.g. `ALIAS rest = ANY
+        -- UNTILBEFORE NL`); the hint of StopsThatRanAcrossLines takes precedence.
+
+    @invariant StopsThatRanAcrossLines
+        -- When an UNTIL / UNTILBEFORE repetition that started on an earlier line was still
+        -- running at the failure, a second label marks the first line of its match and the
+        -- hint says the problem is probably on that line. Line breaks right before the
+        -- failure do not count as crossing. Lines are counted as NL counts line breaks
+        -- (`\r\n`, `\n` or a lone `\r`), consistently with LINE, ROW and the line numbers
+        -- in the diagnostic snippets.
+
+    @invariant HintsOtherwise
+        -- Otherwise the hint says what was found: "the text does not match from the start;
+        -- found ..." or "the text matched up to here; found ...".
+}
+
+-- Looking for output-changing ambiguity in the chosen reading.
+contract AmbiguityAnalysis {
+    alternatives: (tree: ParseTree) -> Set<Ambiguity>
+
+    @invariant OneDecisionAtATime
+        -- Each match in the chosen reading is compared with readings that differ from it in
+        -- exactly one decision (another OR branch, another span, one more or fewer item) and
+        -- satisfy every WHERE condition on the way up.
+
+    @invariant OnlyOutputChangesCount
+        -- A difference is reported only if it changes the final output: differences that
+        -- yield the same captures and value, or that an enclosing template ignores, are not
+        -- ambiguity. An alternative reading that fails to evaluate does change the output
+        -- (see FailingAlternativesAreReported).
+
+    @invariant FailingAlternativesAreReported
+        -- When evaluating an alternative reading (its values, or a WHERE condition on the way
+        -- up) fails with an evaluation error, or exceeds max_depth nested rule matches, the
+        -- alternative is still another reading of the input: it is reported as an ambiguity,
+        -- and the analysis goes on. The run never fails because of an alternative reading.
+        -- Such a report names the nearest rule at or above the differing match, labels the
+        -- chosen and the alternative part in the input as usual, gives the chosen value of
+        -- that rule, and, in place of the alternative value, says that another reading of
+        -- this text exists but fails to evaluate, with the reason: the evaluation error's
+        -- message, or that it nests more than max_depth rule matches. It carries the same
+        -- severity (warning, or error when strict) and caps as any other ambiguity, and the
+        -- same advice except the line-crossing one (TailoredAdvice): a choice between OR
+        -- branches gets the branch-order advice, anything else the generic advice.
+
+    @invariant ExplicitChoicesAreNotAmbiguity
+        -- Choices settled by LAZY, and differences inside SKIPPING text, separators or
+        -- consumed stops, are never reported.
+
+    @invariant ReportNamesTheNearestRule
+        -- The report names the nearest rule whose value changes, labels the chosen and the
+        -- alternative part in the input with their text, and gives both values of that rule.
+        -- At most one report per match and at most max_reported_ambiguities per run; these
+        -- caps are intended, also for `txtql check`, which therefore lists up to that many.
+
+    @invariant TailoredAdvice
+        -- When the choice was between two OR branches, the advice says the first branch won
+        -- because it comes first, and suggests listing the special case first or excluding
+        -- it with WHERE. When the chosen reading has a stop repetition running across line
+        -- breaks and the other does not, the advice shows the repetition with NL added to its
+        -- stop, or suggests a stop that says where a multi-line value ends. Otherwise the
+        -- advice is to make the pattern more specific (literals, SPLITBY, LAZY).
+
+    @invariant BudgetStopsQuietly
+        -- The analysis has its own budget. When it runs out, the ambiguities found so far are
+        -- kept and the run says the check was incomplete instead of failing.
+}
+
+-- What txtql promises about the cost of a run.
+contract Performance {
+    steps: (query: lang/Query, input: lang/InputText) -> Integer
+
+    @invariant Deterministic
+        -- The work done (steps) is deterministic for a query and an input.
+
+    @invariant LinearForTypicalQueries
+        -- Lists of records, lines and key/value pairs, including the ambiguity check, run in
+        -- time linear in the input.
+
+    @invariant PolynomialAlways
+        -- Any grammar, however ambiguous, stays polynomial (cubic in the worst case).
+        -- Right-recursive rules are quadratic.
+
+    @invariant RunawayIsACleanError
+        -- Exceeding max_steps ends the run with txtql::input::too_expensive, never with a
+        -- hang or a crash. Deeply nested matches never overflow the stack; exceeding
+        -- max_depth ends the run with txtql::input::too_deep.
+
+    @invariant DepthIsASearchBound
+        -- max_depth bounds the search, not the chosen reading, and this is intended. Depth is
+        -- checked while matches are being found; a sub-match found once is reused at deeper
+        -- positions without a new check. So the chosen reading can nest up to about twice
+        -- max_depth rule matches, and a candidate that exceeds max_depth while being searched
+        -- fails the run with txtql::input::too_deep even if a WHERE condition would later
+        -- have rejected it. Memory stays bounded either way.
+
+    @invariant NeverPanics
+        -- No query text and no input text makes txtql crash; even queries the static checks
+        -- would reject stay bounded at run time.
+}
+
+------------------------------------------------------------
+-- Enumerations
+------------------------------------------------------------
+
+enum RunFailure {
+    no_parse
+    | where_rejected_every_reading
+    | too_expensive
+    | too_deep
+    | evaluation_error
+    | ambiguous
+    | repeated_keys
+}
+
+-- The kind of advice attached to an ambiguity.
+enum AmbiguityAdvice { branch_order | stop_crossed_lines | more_specific_pattern }
+
+------------------------------------------------------------
+-- Entities and Variants
+------------------------------------------------------------
+
+-- The chosen reading of the input: which rule, branch and span matched where.
+external entity ParseTree {}
+
+entity Run {
+    compilation: comp/Compilation
+    input: lang/InputText
+    options: RunOptions
+    status: recognising | choosing | evaluating | analysing | succeeded | failed
+    failure: RunFailure when status = failed
+    tree: ParseTree when status = evaluating | analysing | succeeded
+    output: lang/JsonValue when status = analysing | succeeded
+    ambiguity_check_complete: Boolean
+    ambiguities: Ambiguity with run = this
+    repeated_keys: RepeatedKey with run = this
+
+    strict_ambiguities: ambiguities where strict
+
+    transitions status {
+        recognising -> choosing
+        recognising -> failed
+        choosing -> evaluating
+        choosing -> failed
+        evaluating -> analysing
+        evaluating -> succeeded
+        evaluating -> failed
+        analysing -> succeeded
+        analysing -> failed
+        terminal: succeeded, failed
+    }
+}
+
+-- An output-changing ambiguity (txtql::input::ambiguous): a warning, or an error when
+-- the run is strict or the rule whose value changes is STRICT. Exactly one of
+-- alternative_value and alternative_failure is present: the latter when the alternative
+-- reading fails to evaluate (see FailingAlternativesAreReported).
+entity Ambiguity {
+    run: Run
+    rule_name: String
+    chosen: diag/SourceLabel
+    alternative: diag/SourceLabel
+    chosen_value: String
+    alternative_value: String?
+    alternative_failure: String?
+    advice: AmbiguityAdvice
+    strict: Boolean
+}
+
+-- An object key set twice without LISTOF, by an object template or by ZIP
+-- (txtql::eval::repeated_key): a warning, or an error in a strict run.
+entity RepeatedKey {
+    run: Run
+    key: String
+    entry: lang/Span
+    matched_text: lang/Span
+    strict: Boolean
+}
+
+------------------------------------------------------------
+-- Config
+------------------------------------------------------------
+
+config {
+    default_max_steps: Integer = 200_000_000
+    -- A search bound on nesting, not an exact limit on the chosen reading
+    -- (Performance.DepthIsASearchBound).
+    default_max_depth: Integer = 10_000
+    default_ambiguity_steps: Integer = 5_000_000
+    -- Intended caps on ambiguity reports: at most this many per run, at most one per match.
+    max_reported_ambiguities: Integer = 20
+    max_listed_expectations: Integer = 8
+}
+
+------------------------------------------------------------
+-- Rules
+------------------------------------------------------------
+
+-- Only a compiled query can run. A run never changes the compiled query, and one compiled
+-- query may serve many runs, also concurrently.
+rule StartRun {
+    when: StartRun(client, compilation, input, options)
+    requires: compilation.accepted
+    ensures: Run.created(
+        compilation: compilation,
+        input: input,
+        options: options,
+        status: recognising,
+        ambiguity_check_complete: false
+    )
+}
+
+-- TEXT must match the whole input, every character included.
+rule WholeInputDoesNotMatch {
+    when: run: Run.status becomes recognising
+    requires: recognition_steps(run) <= run.options.max_steps
+    requires: not matches_whole_input(run.compilation.query, run.input)
+    ensures: run.status = failed
+    ensures: run.failure = no_parse
+    ensures: RunFailed(run: run, report: explain_no_parse(run.compilation.query, run.input))
+}
+
+rule RecognitionTooExpensive {
+    when: run: Run.status becomes recognising
+    requires: recognition_steps(run) > run.options.max_steps
+    ensures: run.status = failed
+    ensures: run.failure = too_expensive
+    ensures: RunFailed(run: run, report: too_expensive_report(run.options.max_steps))
+}
+
+rule WholeInputMatches {
+    when: run: Run.status becomes recognising
+    requires: recognition_steps(run) <= run.options.max_steps
+    requires: matches_whole_input(run.compilation.query, run.input)
+    ensures: run.status = choosing
+}
+
+-- Pick the preferred reading (see Disambiguation) whose WHERE conditions all hold.
+rule ChooseReading {
+    when: run: Run.status becomes choosing
+    let outcome = choose_reading(run.compilation.query, run.input, run.options)
+    ensures:
+        if outcome.tree != null:
+            run.status = evaluating
+            run.tree = outcome.tree
+        else:
+            run.status = failed
+            run.failure = outcome.failure
+            RunFailed(run: run, report: outcome.report)
+
+    @guidance
+        -- outcome.failure is one of: where_rejected_every_reading ("the text matches the
+        -- patterns, but no reading satisfies the WHERE conditions"), too_deep (the search
+        -- exceeded max_depth nested rule matches, possibly in a candidate WHERE would have
+        -- rejected; see Performance.DepthIsASearchBound), too_expensive (step budget),
+        -- evaluation_error (a WHERE condition failed to evaluate, e.g. comparing a list
+        -- with `<`).
+}
+
+-- Build the JSON output from the chosen reading (see TemplateEvaluation, DefaultValues).
+-- Repeated keys are recorded as they happen.
+rule EvaluateOutput {
+    when: run: Run.status becomes evaluating
+    let result = evaluate_root(run.tree)
+    ensures:
+        if result.error != null:
+            run.status = failed
+            run.failure = evaluation_error
+            RunFailed(run: run, report: result.error)
+        else:
+            for k in result.repeated_keys:
+                RepeatedKey.created(run: run, key: k.key, entry: k.entry, matched_text: k.matched_text, strict: run.options.strict)
+            if run.options.strict and result.repeated_keys.count > 0:
+                run.status = failed
+                run.failure = repeated_keys
+            else if run.options.check_ambiguity:
+                run.status = analysing
+                run.output = result.value
+            else:
+                run.status = succeeded
+                run.output = result.value
+}
+
+-- Compare the chosen reading with its one-decision alternatives (see AmbiguityAnalysis).
+rule AnalyseAmbiguity {
+    when: run: Run.status becomes analysing
+    let found = analyse_ambiguity(run.tree, run.options.ambiguity_steps)
+    ensures:
+        run.ambiguity_check_complete = found.complete
+        for a in found.ambiguities:
+            Ambiguity.created(
+                run: run,
+                rule_name: a.rule_name,
+                chosen: a.chosen,
+                alternative: a.alternative,
+                chosen_value: a.chosen_value,
+                alternative_value: a.alternative_value,
+                alternative_failure: a.alternative_failure,
+                advice: a.advice,
+                strict: run.options.strict or a.rule_is_strict
+            )
+        if found.ambiguities.any(a => run.options.strict or a.rule_is_strict):
+            run.status = failed
+            run.failure = ambiguous
+        else:
+            run.status = succeeded
+
+    @guidance
+        -- When a run fails as ambiguous, only the strict ambiguities are reported, as errors.
+        -- found never fails: an alternative that fails to evaluate or nests too deeply is an
+        -- ambiguity with alternative_failure set; only the analysis budget ends it early
+        -- (found.complete = false).
+}
+
+------------------------------------------------------------
+-- Invariants
+------------------------------------------------------------
+
+invariant StrictAmbiguityFailsTheRun {
+    for r in Runs:
+        (r.status = succeeded) implies r.strict_ambiguities.count = 0
+}
+
+invariant StrictRunsHaveNoRepeatedKeys {
+    for r in Runs:
+        (r.status = succeeded and r.options.strict) implies r.repeated_keys.count = 0
+}
+
+invariant AmbiguityHasOneAlternativeOutcome {
+    for a in Ambiguities:
+        (a.alternative_value = null) = (a.alternative_failure != null)
+}
+
+invariant AmbiguityReportsAreCapped {
+    for r in Runs:
+        r.ambiguities.count <= config.max_reported_ambiguities
+}
+
+------------------------------------------------------------
+-- Surfaces
+------------------------------------------------------------
+
+-- The library API for running: `query.run(text, options)`.
+surface QueryRunner {
+    facing client: comp/Client
+
+    context run: Run
+
+    exposes:
+        run.status
+        run.output
+        run.ambiguities
+        run.repeated_keys
+        run.ambiguity_check_complete
+
+    provides:
+        StartRun(client, compilation, input, options)
+
+    contracts:
+        fulfils Disambiguation
+        fulfils NoParseExplanation
+        fulfils AmbiguityAnalysis
+        fulfils Performance
+        fulfils lang/PrimitiveMatching
+        fulfils lang/RepetitionMatching
+        fulfils lang/CaptureScoping
+        fulfils lang/DefaultValues
+        fulfils lang/TemplateEvaluation
+        fulfils lang/ConditionEvaluation
+
+    @guarantee OutputIsJson
+        -- A successful run yields one JSON value, the value of the TEXT rule over the whole
+        -- input, together with the ambiguities and repeated keys found (warnings), whether
+        -- the ambiguity check completed, and the deterministic number of steps used.
+
+    @guarantee DeepValuesAreSafe
+        -- Arbitrarily deep output values can be built, compared and released without
+        -- overflowing the stack; the library offers a way to release them safely.
+}

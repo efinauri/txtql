@@ -1,0 +1,13 @@
+---
+source: tests/parser.rs
+assertion_line: 188
+expression: "parse_err(\"TEXT = x: OR y\")"
+---
+txtql::parse::unexpected_token
+
+  × expected a pattern after the label, found keyword `OR`
+   ╭─[query:1:11]
+ 1 │ TEXT = x: OR y
+   ·           ─┬
+   ·            ╰── unexpected keyword `OR`
+   ╰────

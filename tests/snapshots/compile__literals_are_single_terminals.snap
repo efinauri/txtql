@@ -1,0 +1,13 @@
+---
+source: tests/compile.rs
+assertion_line: 13
+expression: "dump(\"TEXT = 'e-mail' ' ' 'black and'\")"
+---
+nt0 rule `TEXT` (Rule(0)) start=s0
+  s0
+    -> s2 'e-mail'
+  s1 accept
+  s2
+    -> s3 ' '
+  s3
+    -> s1 'black and'

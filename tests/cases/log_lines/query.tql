@@ -1,0 +1,6 @@
+TEXT  = 1 TO n entry SKIPPING (LINE NL) AS [ entry FOR entry ]
+entry = d:date ' ' t:time ' [' level:WORD '] ' msg:(ANY UNTIL NL)
+    WHERE level != 'DEBUG'
+    AS { 'at': JOIN([d, t], 'T'), 'level': LOWER(level), 'message': msg }
+date  = FLOAT '-' FLOAT '-' FLOAT
+time  = FLOAT ':' FLOAT ':' FLOAT

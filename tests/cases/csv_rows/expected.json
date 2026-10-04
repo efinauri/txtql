@@ -1,0 +1,19 @@
+{
+  "header": [
+    "name",
+    "age",
+    "city"
+  ],
+  "rows": [
+    [
+      "Ada",
+      "36",
+      "London"
+    ],
+    [
+      "Alan",
+      "41",
+      "Wilmslow"
+    ]
+  ]
+}

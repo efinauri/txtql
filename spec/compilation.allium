@@ -1,0 +1,347 @@
+-- allium: 3
+-- compilation.allium
+--
+-- Compiling a query: parsing its text, then checking it statically. A query that has a
+-- syntax error or any static error is rejected; lints are warnings and do not prevent
+-- compilation. A compiled query can be run any number of times, from several threads.
+--
+-- Scope: the compilation lifecycle and every static check with its diagnostic code.
+-- Excludes: how a compiled query is matched against input (running.allium).
+-- Distilled from src/lib.rs (Query::compile), src/parser.rs, src/lexer.rs, src/check.rs,
+-- tests/parser.rs, tests/check.rs and the golden cases.
+
+use "./language.allium" as lang
+use "./diagnostics.allium" as diag
+
+------------------------------------------------------------
+-- External Entities
+------------------------------------------------------------
+
+-- Whoever hands txtql a query or input: a program using the library, the command-line
+-- tool or the language server.
+external entity Client {}
+
+------------------------------------------------------------
+-- Entities and Variants
+------------------------------------------------------------
+
+entity Compilation {
+    source: String
+    status: submitted | syntax_rejected | checked
+    query: lang/Query when status = checked
+    diagnostics: CompileDiagnostic with compilation = this
+
+    errors: diagnostics where severity = error
+    warnings: diagnostics where severity = warning
+    -- Compiled: the query parsed and no static check reported an error.
+    accepted: status = checked and errors.count = 0
+
+    transitions status {
+        submitted -> syntax_rejected
+        submitted -> checked
+        terminal: syntax_rejected, checked
+    }
+}
+
+-- A syntax error, static error or lint, pointing into the query text.
+entity CompileDiagnostic {
+    compilation: Compilation
+    code: diag/DiagnosticCode
+    severity: diag/Severity
+    span: lang/Span
+    help: String?
+}
+
+------------------------------------------------------------
+-- Rules
+------------------------------------------------------------
+
+-- Any client (command line, library, editor) hands over query text.
+rule SubmitQuery {
+    when: SubmitQuery(client, source)
+    ensures: Compilation.created(source: source, status: submitted)
+}
+
+-- Parsing stops at the first syntax error and reports only that one.
+-- Syntax errors and their hints:
+--   unexpected_char      `|` (hint: use OR), `*` `+` `?` (hint: `a TO b pattern`), others
+--   unterminated_string  a string with no closing quote
+--   bad_escape           an escape other than \n \t \r \\ \' \"
+--   bad_number           a number too large to represent
+--   unexpected_token     "expected X, found Y", with hints for: a keyword used as a rule
+--                        name, alias name or label; `WHERE` after `AS`; a second WHERE or AS;
+--                        `WHERE`/`AS` on an alias; a missing `=`; `TO` missing in a
+--                        repetition; an upper bound that is neither a number nor `n`;
+--                        object entries without `:`
+--   unexpected_end       the query ends where something was still expected
+--   too_deep             more than max_query_nesting levels of nesting
+rule RejectSyntax {
+    when: compilation: Compilation.status becomes submitted
+    requires: not parses(compilation.source)
+    let problem = first_syntax_error(compilation.source)
+    ensures: compilation.status = syntax_rejected
+    ensures: CompileDiagnostic.created(
+        compilation: compilation,
+        code: problem.code,
+        severity: error,
+        span: problem.span,
+        help: problem.help
+    )
+}
+
+rule AcceptSyntax {
+    when: compilation: Compilation.status becomes submitted
+    requires: parses(compilation.source)
+    ensures: compilation.status = checked
+    ensures: compilation.query = parse(compilation.source)
+    ensures: QueryParsed(compilation: compilation)
+}
+
+-- First pass: names (including reserved names), roots, bounds, literals, OR branches, stops
+-- and aliases. Always runs.
+
+-- Rules and aliases share one namespace; every spelling of the root's name is the same
+-- name (`TEXT` and `text` collide). Each later definition is reported with the first.
+rule CheckDefinitions {
+    when: QueryParsed(compilation)
+    requires: compilation.status = checked
+    let query = compilation.query
+    ensures:
+        for site in redefinitions(query):
+            CompileDiagnostic.created(compilation: compilation, code: `txtql::check::duplicate_rule`, severity: error, span: site)
+        if aliases_named_root(query).count > 0:
+            CompileDiagnostic.created(compilation: compilation, code: `txtql::check::root_is_alias`, severity: error, span: aliases_named_root(query).first)
+        else if query.roots.count = 0:
+            CompileDiagnostic.created(compilation: compilation, code: `txtql::check::missing_root`, severity: error, span: whole_query(query))
+}
+
+-- `true`, `false` and `null` (in any case) are template constants, so no rule, alias, label or
+-- FOR loop variable may be named after one (a rule, label or loop variable so named could
+-- never be referenced from WHERE or AS; aliases share the namespace), e.g. `[ x FOR true IN w ]`. Each such name is an error; the hint suggests choosing
+-- another name. Field names after `.` are not names in this sense.
+rule CheckReservedNames {
+    when: QueryParsed(compilation)
+    requires: compilation.status = checked
+    ensures:
+        for site in constant_named_definitions_labels_and_loop_variables(compilation.query):
+            CompileDiagnostic.created(compilation: compilation, code: `txtql::check::reserved_name`, severity: error, span: site)
+}
+
+-- A reference must name a rule or an alias; the hint suggests the closest defined name.
+rule CheckReferences {
+    when: QueryParsed(compilation)
+    requires: compilation.status = checked
+    let query = compilation.query
+    ensures:
+        for site in undefined_references(query):
+            CompileDiagnostic.created(
+                compilation: compilation,
+                code: `txtql::check::undefined_rule`,
+                severity: error,
+                span: site,
+                help: closest_definition_hint(query, site)
+            )
+}
+
+-- Literals must not be empty; finite bounds are at most max_repetition_bound; the lower
+-- bound must not exceed the upper one.
+rule CheckPatternShapes {
+    when: QueryParsed(compilation)
+    requires: compilation.status = checked
+    let query = compilation.query
+    ensures:
+        for site in empty_literals(query):
+            CompileDiagnostic.created(compilation: compilation, code: `txtql::check::empty_literal`, severity: error, span: site)
+        for site in oversized_bounds(query, lang/config.max_repetition_bound):
+            CompileDiagnostic.created(compilation: compilation, code: `txtql::check::bound_too_large`, severity: error, span: site)
+        for site in inverted_bounds(query):
+            CompileDiagnostic.created(compilation: compilation, code: `txtql::check::bad_bounds`, severity: error, span: site)
+}
+
+-- An OR branch written the same as an earlier branch of the same OR can never be chosen,
+-- because the earlier one always wins. Aliases are compared by the pattern they stand for;
+-- `'a'` and `i'a'` differ.
+rule CheckDuplicateBranches {
+    when: QueryParsed(compilation)
+    requires: compilation.status = checked
+    ensures:
+        for site in repeated_branches(compilation.query):
+            CompileDiagnostic.created(compilation: compilation, code: `txtql::check::duplicate_branch`, severity: error, span: site)
+}
+
+-- A stop is built from non-empty literals and primitives other than LINE, ROW and COL,
+-- combined with sequences, OR and plain repetitions (no SPLITBY, SKIPPING or stop of their
+-- own). Aliases are looked through; rules and labels are not allowed (bad_stop, reported
+-- at the use site). ANY alone is not a stop, since it would end the repetition at once
+-- (bad_stop). A stop that can match empty text is not allowed either, except EOF
+-- (empty_stop).
+rule CheckStops {
+    when: QueryParsed(compilation)
+    requires: compilation.status = checked
+    let query = compilation.query
+    ensures:
+        for site in disallowed_stops(query):
+            CompileDiagnostic.created(compilation: compilation, code: `txtql::check::bad_stop`, severity: error, span: site)
+        for site in emptiable_stops(query):
+            CompileDiagnostic.created(compilation: compilation, code: `txtql::check::empty_stop`, severity: error, span: site)
+}
+
+-- Aliases never capture, so labels inside one are errors; an alias cannot refer to itself,
+-- directly or through other aliases (recursion needs a rule). Each cycle is reported once.
+rule CheckAliases {
+    when: QueryParsed(compilation)
+    requires: compilation.status = checked
+    let query = compilation.query
+    ensures:
+        for site in labels_inside_aliases(query):
+            CompileDiagnostic.created(compilation: compilation, code: `txtql::check::label_in_alias`, severity: error, span: site)
+        for site in alias_cycles(query):
+            CompileDiagnostic.created(compilation: compilation, code: `txtql::check::alias_cycle`, severity: error, span: site)
+}
+
+-- Lint: an unlimited repetition (without SPLITBY or a stop) whose item is directly another
+-- unlimited repetition (without SPLITBY or a stop) can split text in exponentially many
+-- ways. Anything around the inner repetition (a literal, a sequence) anchors it.
+rule LintNestedRepetitions {
+    when: QueryParsed(compilation)
+    requires: compilation.status = checked
+    ensures:
+        for site in directly_nested_unlimited_repetitions(compilation.query):
+            CompileDiagnostic.created(compilation: compilation, code: `txtql::lint::nested_repetition`, severity: warning, span: site)
+}
+
+-- Second pass: emptiness, cycles, reachability, captures and templates. It assumes every
+-- name resolves and every pattern is well formed, so it only runs when the first pass found
+-- no error (lints from the first pass do not stop it).
+
+-- A repetition that may run (max other than 0) must consume text on every iteration:
+-- its item must not be able to match empty text, unless a separator that always consumes
+-- text keeps iterations apart (`1 TO n LINE SPLITBY NL` is fine, `1 TO n LINE` is not).
+-- A SKIPPING pattern must not be able to match empty text. A rule must not be able to
+-- derive itself without consuming text (left recursion that consumes text is fine).
+-- Aliases are looked through.
+rule CheckEmptiness {
+    when: QueryParsed(compilation)
+    requires: compilation.status = checked
+    requires: not has_first_pass_errors(compilation.query)
+    let query = compilation.query
+    ensures:
+        for site in loops_that_can_match_empty(query):
+            CompileDiagnostic.created(compilation: compilation, code: `txtql::check::empty_loop`, severity: error, span: site)
+        for site in empty_cycles(query):
+            CompileDiagnostic.created(compilation: compilation, code: `txtql::check::empty_cycle`, severity: error, span: site)
+}
+
+-- Lints: rules and aliases that TEXT cannot reach, and direct right recursion (an OR
+-- branch of a rule that ends with a reference to the rule itself), which makes matching
+-- quadratic where a repetition would be linear.
+rule LintReachabilityAndRecursion {
+    when: QueryParsed(compilation)
+    requires: compilation.status = checked
+    requires: not has_first_pass_errors(compilation.query)
+    let query = compilation.query
+    ensures:
+        for site in unreachable_rules(query):
+            CompileDiagnostic.created(compilation: compilation, code: `txtql::lint::unused_rule`, severity: warning, span: site)
+        for site in unreachable_aliases(query):
+            CompileDiagnostic.created(compilation: compilation, code: `txtql::lint::unused_alias`, severity: warning, span: site)
+        for site in direct_right_recursions(query):
+            CompileDiagnostic.created(compilation: compilation, code: `txtql::lint::right_recursion`, severity: warning, span: site)
+}
+
+-- Within one sequence, a capture name may appear only once (labels and implicit rule
+-- captures alike, including inside repetitions); OR branches may reuse a name. The hint
+-- suggests renaming with a label (`other:name`).
+rule CheckCaptures {
+    when: QueryParsed(compilation)
+    requires: compilation.status = checked
+    requires: not has_first_pass_errors(compilation.query)
+    ensures:
+        for site in duplicate_captures(compilation.query):
+            CompileDiagnostic.created(compilation: compilation, code: `txtql::check::duplicate_capture`, severity: error, span: site)
+}
+
+-- WHERE and AS are checked against the statically known shape of each capture (text,
+-- number, list, object with known fields, or unknown):
+--   unknown_capture   a name that is not captured (hint: closest name, the available
+--                     names, "this rule captures nothing", and for an object key, quoting)
+--   unknown_field     a field missing from an object whose fields are known
+--   not_repeated      FOR over a value known not to be a list (e.g. a `0 TO 1` capture)
+--   not_mergeable     a keyless entry whose value is known to be text, a number, a boolean
+--                     or a list of those
+--   unknown_function  a function other than NUM LOWER UPPER TRIM COUNT FIRST LAST JOIN ZIP
+--   arity             JOIN and ZIP take 2 arguments, the others 1; JOIN without its
+--                     separator is reported here, with a hint showing it written out
+--                     (e.g. `JOIN(list, ' ')`)
+-- Inside FOR over values whose fields are not known statically, any name is accepted.
+rule CheckTemplatesAndConditions {
+    when: QueryParsed(compilation)
+    requires: compilation.status = checked
+    requires: not has_first_pass_errors(compilation.query)
+    ensures:
+        for problem in template_problems(compilation.query):
+            CompileDiagnostic.created(
+                compilation: compilation,
+                code: problem.code,
+                severity: error,
+                span: problem.span,
+                help: problem.help
+            )
+}
+
+------------------------------------------------------------
+-- Invariants
+------------------------------------------------------------
+
+-- A query with errors is never compiled; warnings alone never prevent it.
+invariant WarningsNeverBlock {
+    for c in Compilations:
+        c.accepted implies c.errors.count = 0
+}
+
+-- A compiled query has exactly one root rule, and its warnings are lints only.
+invariant CompiledQueriesHaveOneRoot {
+    for c in Compilations:
+        (c.status = checked and c.errors.count = 0) implies c.query.roots.count = 1
+}
+
+invariant WarningsAreLints {
+    for c in Compilations:
+        for d in c.warnings:
+            d.code in {`txtql::lint::unused_alias`, `txtql::lint::unused_rule`, `txtql::lint::nested_repetition`, `txtql::lint::right_recursion`}
+}
+
+invariant SyntaxErrorsAreAlone {
+    for c in Compilations:
+        c.status = syntax_rejected implies c.diagnostics.count = 1
+}
+
+------------------------------------------------------------
+-- Surfaces
+------------------------------------------------------------
+
+-- The library API for compiling: `Query::compile(source)`.
+surface QueryCompiler {
+    facing client: Client
+
+    context compilation: Compilation
+
+    exposes:
+        compilation.status
+        compilation.accepted
+        compilation.diagnostics
+
+    provides:
+        SubmitQuery(client, source)
+
+    contracts:
+        fulfils lang/Lexicon
+        fulfils diag/DiagnosticPresentation
+
+    @guarantee CompiledQueriesAreShareable
+        -- A compiled query is immutable and can be used from several threads at once.
+
+    @guarantee CompilingNeverPanics
+        -- Any text, however malformed, compiles or yields diagnostics; it never crashes.
+        -- Printing a parsed query and parsing the result again gives the same query.
+}

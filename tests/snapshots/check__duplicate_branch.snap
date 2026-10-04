@@ -1,0 +1,14 @@
+---
+source: tests/check.rs
+expression: "compile_err(\"TEXT = ('a' OR WORD OR 'a')\")"
+---
+txtql::check::duplicate_branch
+
+  × this `OR` branch is the same as an earlier one
+   ╭─[query:1:9]
+ 1 │ TEXT = ('a' OR WORD OR 'a')
+   ·         ─┬─            ─┬─
+   ·          │              ╰── the same again
+   ·          ╰── first here
+   ╰────
+  help: the earlier branch always wins, so this one can never be chosen; remove it, or change it

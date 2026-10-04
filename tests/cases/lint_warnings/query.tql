@@ -1,0 +1,2 @@
+TEXT = 1 TO n groups:(1 TO n LETTER) NL
+unused = FLOAT

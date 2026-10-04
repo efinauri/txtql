@@ -1,0 +1,14 @@
+---
+source: tests/parser.rs
+assertion_line: 173
+expression: "parse_err(\"TEXT = 1 TO m WORD\")"
+---
+txtql::parse::unexpected_token
+
+  × expected a number or `n`, found identifier `m`
+   ╭─[query:1:13]
+ 1 │ TEXT = 1 TO m WORD
+   ·             ┬
+   ·             ╰── unexpected identifier `m`
+   ╰────
+  help: use `n` for an unlimited number of repetitions

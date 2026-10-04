@@ -1,0 +1,17 @@
+---
+source: tests/compile.rs
+expression: "dump(\"TEXT = 1 TO n x:WORD SPLITBY ','\")"
+---
+nt0 rule `TEXT` (Rule(0)) start=s0
+  names: [["x"]]
+  s0
+    -> s4 nt1
+  s4 accept
+nt1 repetition (Rep { lazy: false, single: false }) start=s1
+  names: [["x"]]
+  s1
+    -> s2 WORD as x [Item]
+  s2 accept
+    -> s3 ',' [Sep]
+  s3
+    -> s2 WORD as x [Item]

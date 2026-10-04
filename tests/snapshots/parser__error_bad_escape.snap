@@ -1,0 +1,14 @@
+---
+source: tests/parser.rs
+assertion_line: 213
+expression: "parse_err(r\"TEXT = 'a\\qb'\")"
+---
+txtql::parse::bad_escape
+
+  × unknown escape sequence `\q`
+   ╭─[query:1:10]
+ 1 │ TEXT = 'a\qb'
+   ·          ─┬
+   ·           ╰── unknown escape
+   ╰────
+  help: valid escapes are \n, \t, \r, \\, \' and \"

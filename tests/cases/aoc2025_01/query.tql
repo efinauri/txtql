@@ -1,0 +1,3 @@
+-- Advent of Code 2025, day 1: Secret Entrance (https://adventofcode.com/2025/day/1)
+TEXT     = 1 TO n rotation
+rotation = dir:('L' OR 'R') n:INT NL AS { 'dir': dir, 'steps': NUM(n) }

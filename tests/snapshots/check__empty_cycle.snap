@@ -1,0 +1,17 @@
+---
+source: tests/check.rs
+assertion_line: 135
+expression: "compile_err(\"a = b\\nb = a OR WORD\\nTEXT = a\")"
+---
+txtql::check::empty_cycle
+
+  × rule `a` can derive itself without consuming any text
+   ╭─[query:2:5]
+ 1 │ a = b
+ 2 │ b = a OR WORD
+   ·     ┬
+   ·     ╰── this reference closes the cycle
+ 3 │ TEXT = a
+   ╰────
+  help: make sure every recursive reference is preceded or followed by something that consumes
+        text

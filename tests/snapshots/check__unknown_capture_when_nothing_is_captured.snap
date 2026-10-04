@@ -1,0 +1,14 @@
+---
+source: tests/check.rs
+assertion_line: 81
+expression: "compile_err(\"TEXT = WORD AS x\")"
+---
+txtql::check::unknown_capture
+
+  × `x` is not captured here
+   ╭─[query:1:16]
+ 1 │ TEXT = WORD AS x
+   ·                ┬
+   ·                ╰── unknown name
+   ╰────
+  help: this rule captures nothing; label parts of the pattern, e.g. `name:WORD`

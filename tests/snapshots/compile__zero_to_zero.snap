@@ -1,0 +1,12 @@
+---
+source: tests/compile.rs
+expression: "dump(\"TEXT = 0 TO 0 WORD 'x'\")"
+---
+nt0 rule `TEXT` (Rule(0)) start=s0
+  s0
+    -> s3 nt1
+  s2 accept
+  s3
+    -> s2 'x'
+nt1 repetition (Rep { lazy: false, single: true }) start=s1
+  s1 accept

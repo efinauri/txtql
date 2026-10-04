@@ -1,0 +1,19 @@
+txtql::eval::repeated_key
+
+  ⚠ key `set-cookie` is set more than once; the later value wins
+   ╭─[query.tql:2:32]
+ 1 │ -- Without LISTOF, a repeated key keeps the later value and is reported.
+ 2 │ TEXT   = 1 TO n hs:header AS { LOWER(h.name): h.value FOR h IN hs }
+   ·                                ──────┬──────
+   ·                                      ╰── this sets the key again
+ 3 │ header = name:(ANY UNTIL ': ') value:(ANY UNTIL NL)
+   ╰────
+  help: to keep every value, collect them with `LISTOF`, e.g. `{ k: LISTOF v FOR x IN xs }`
+
+Advice: 
+  ☞ in this part of the input
+   ╭─[input.txt:1:1]
+ 1 │ ╭─▶ Set-Cookie: a=1
+ 2 │ ├─▶ Set-Cookie: b=2
+   · ╰──── matched text
+   ╰────

@@ -1,0 +1,5 @@
+-- '-' means unknown. Both branches match it; the warning explains both possible fixes.
+TEXT    = 1 TO n entry AS { entry }
+entry   = name:WORD ': ' city:(unknown OR place) NL AS { name: city }
+unknown = '-' AS null
+place   = t:(ANY UNTILBEFORE NL) AS t

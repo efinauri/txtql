@@ -1,0 +1,13 @@
+---
+source: tests/parser.rs
+assertion_line: 162
+expression: "parse_err(\"TEXT = \")"
+---
+txtql::parse::unexpected_end
+
+  × expected a pattern, but the query ends here
+   ╭─[query:1:6]
+ 1 │ TEXT = 
+   ·      ┬
+   ·      ╰── expected a pattern after this
+   ╰────

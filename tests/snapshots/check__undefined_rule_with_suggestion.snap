@@ -1,0 +1,15 @@
+---
+source: tests/check.rs
+assertion_line: 30
+expression: "compile_err(\"color = WORD\\nTEXT = 1 TO n colr\")"
+---
+txtql::check::undefined_rule
+
+  × rule `colr` is not defined
+   ╭─[query:2:15]
+ 1 │ color = WORD
+ 2 │ TEXT = 1 TO n colr
+   ·               ──┬─
+   ·                 ╰── unknown rule
+   ╰────
+  help: did you mean `color`?

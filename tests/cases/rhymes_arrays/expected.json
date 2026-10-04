@@ -1,0 +1,19 @@
+{
+  "nouns": [
+    "roses",
+    "violets",
+    "bees"
+  ],
+  "adjectives": [
+    [
+      "red"
+    ],
+    [
+      "blue"
+    ],
+    [
+      "black",
+      "yellow"
+    ]
+  ]
+}

@@ -1,0 +1,190 @@
+{
+  "session": {
+    "date": "2026-09-30",
+    "build": "0.9.3-beta",
+    "platform": "win64",
+    "tester": "mira"
+  },
+  "events": [
+    {
+      "time": "00:00:00.000",
+      "level": "info",
+      "system": "boot",
+      "type": "scene_load",
+      "scene": "MainMenu",
+      "seconds": 1.84
+    },
+    {
+      "time": "00:00:01.250",
+      "level": "debug",
+      "system": "input",
+      "type": "click",
+      "at": [
+        0,
+        0
+      ],
+      "button": "left"
+    },
+    {
+      "time": "00:00:01.900",
+      "level": "debug",
+      "system": "input",
+      "type": "click",
+      "at": [
+        960,
+        540
+      ],
+      "button": "left"
+    },
+    {
+      "time": "00:00:02.004",
+      "level": "info",
+      "system": "boot",
+      "type": "scene_load",
+      "scene": "Forest_01",
+      "seconds": 3.2
+    },
+    {
+      "time": "00:00:02.500",
+      "level": "debug",
+      "system": "input",
+      "type": "key",
+      "key": "W",
+      "state": "down"
+    },
+    {
+      "time": "00:00:03.120",
+      "level": "debug",
+      "system": "player",
+      "type": "position",
+      "at": [
+        12.5,
+        -3.25,
+        0
+      ],
+      "hp": 100,
+      "max_hp": 100
+    },
+    {
+      "time": "00:00:03.800",
+      "level": "debug",
+      "system": "input",
+      "type": "key",
+      "key": "W",
+      "state": "up"
+    },
+    {
+      "time": "00:00:04.000",
+      "level": "warn",
+      "system": "render",
+      "type": "fps_drop",
+      "fps": 23,
+      "target": 60,
+      "scene": "Forest_01"
+    },
+    {
+      "time": "00:00:05.310",
+      "level": "error",
+      "system": "assets",
+      "type": "missing_asset",
+      "path": "textures/rock_02.png"
+    },
+    {
+      "time": "00:00:06.000",
+      "level": "info",
+      "system": "quest",
+      "type": "quest",
+      "state": "started",
+      "id": 17,
+      "name": "The Lost Key",
+      "reward_xp": null
+    },
+    {
+      "time": "00:00:07.777",
+      "level": "debug",
+      "system": "input",
+      "type": "click",
+      "at": [
+        1919,
+        1079
+      ],
+      "button": "right"
+    },
+    {
+      "time": "00:00:08.100",
+      "level": "warn",
+      "system": "player",
+      "type": "damage",
+      "amount": 25,
+      "source": {
+        "kind": "goblin",
+        "id": 4
+      },
+      "hp": 75
+    },
+    {
+      "time": "00:00:08.950",
+      "level": "warn",
+      "system": "player",
+      "type": "damage",
+      "amount": 10,
+      "source": "fall",
+      "hp": 65
+    },
+    {
+      "time": "00:00:09.020",
+      "level": "debug",
+      "system": "input",
+      "type": "click",
+      "at": [
+        -4,
+        12
+      ],
+      "button": "left"
+    },
+    {
+      "time": "00:00:09.500",
+      "level": "info",
+      "system": "quest",
+      "type": "quest",
+      "state": "completed",
+      "id": 17,
+      "name": "The Lost Key",
+      "reward_xp": 250
+    },
+    {
+      "time": "00:00:10.000",
+      "level": "error",
+      "system": "physics",
+      "type": "crash",
+      "function": "Physics::step",
+      "reason": "NaN velocity",
+      "trace": [
+        {
+          "file": "src/physics/solver.rs",
+          "line": 212
+        },
+        {
+          "file": "src/physics/world.rs",
+          "line": 88
+        },
+        {
+          "file": "src/game/loop.rs",
+          "line": 40
+        }
+      ]
+    },
+    {
+      "time": "00:00:10.100",
+      "level": "info",
+      "system": "boot",
+      "type": "scene_load",
+      "scene": "MainMenu",
+      "seconds": 0.9
+    }
+  ],
+  "summary": {
+    "frames": 612,
+    "avg_fps": 57.4
+  }
+}

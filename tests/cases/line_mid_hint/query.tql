@@ -1,0 +1,2 @@
+-- LINE matches whole lines only, so after a prefix it fails, with a hint.
+TEXT = 'Title: ' title:LINE NL

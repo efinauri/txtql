@@ -1,0 +1,14 @@
+[
+  {
+    "device": "/dev/nvme0n1p2",
+    "size": "468G",
+    "used": "201G",
+    "mount": "/"
+  },
+  {
+    "device": "tmpfs",
+    "size": "16G",
+    "used": "4.0M",
+    "mount": "/tmp"
+  }
+]

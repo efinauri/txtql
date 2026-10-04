@@ -1,0 +1,3 @@
+Filesystem      Size  Used Mounted on
+/dev/nvme0n1p2  468G  201G /
+tmpfs            16G  4.0M /tmp

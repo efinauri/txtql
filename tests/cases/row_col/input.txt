@@ -1,0 +1,3 @@
+colors: red green
+sizes:  s m l
+empty:

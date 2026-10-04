@@ -1,0 +1,147 @@
+[
+  {
+    "ip": [
+      199,
+      72,
+      81,
+      55
+    ],
+    "time": "01/Jul/1995:00:00:01 -0400",
+    "method": "GET",
+    "path": "/history/apollo/",
+    "protocol": "HTTP/1.0",
+    "leaked_email": null,
+    "status": 200,
+    "bytes": 6245
+  },
+  {
+    "name": "unicomp6.unicomp.net",
+    "time": "01/Jul/1995:00:00:06 -0400",
+    "method": "GET",
+    "path": "/shuttle/countdown/",
+    "protocol": "HTTP/1.0",
+    "leaked_email": null,
+    "status": 200,
+    "bytes": 3985
+  },
+  {
+    "ip": [
+      205,
+      189,
+      154,
+      54
+    ],
+    "time": "01/Jul/1995:00:01:06 -0400",
+    "method": "GET",
+    "path": "/cgi-bin/imagemap/countdown",
+    "click": {
+      "x": 99,
+      "y": 176
+    },
+    "protocol": "HTTP/1.0",
+    "leaked_email": null,
+    "status": 302,
+    "bytes": 110
+  },
+  {
+    "name": "mizzou-ts3-03.missouri.edu",
+    "time": "01/Jul/1995:03:04:36 -0400",
+    "method": "GET",
+    "path": "/htbin/wais.pl",
+    "search": [
+      "shuttle",
+      "and",
+      "earth",
+      "and",
+      "jpg"
+    ],
+    "protocol": "HTTP/1.0",
+    "leaked_email": null,
+    "status": 200,
+    "bytes": 5986
+  },
+  {
+    "name": "titan02f",
+    "time": "18/Jul/1995:15:18:39 -0400",
+    "method": "GET",
+    "path": "/~downs/cgi-bin/BrokerQuery.pl.cgi",
+    "params": {
+      "query": "oms",
+      "host": "titan04.ksc.nasa.gov%3A8501",
+      "caseflag": "on",
+      "wordflag": "on",
+      "errorflag": "0",
+      "opaqueflag": "on",
+      "descflag": "on",
+      "verbose": "on",
+      "maxresultflag": "50"
+    },
+    "protocol": "HTTP/1.0",
+    "leaked_email": null,
+    "status": 200,
+    "bytes": 15930
+  },
+  {
+    "ip": [
+      202,
+      6,
+      90,
+      68
+    ],
+    "time": "01/Jul/1995:03:44:59 -0400",
+    "method": "GET",
+    "path": "/Titles",
+    "params": {
+      "qt": "nasa"
+    },
+    "protocol": "HTTP/1.0",
+    "leaked_email": null,
+    "status": 404,
+    "bytes": null
+  },
+  {
+    "name": "ppp6.cpbx.net",
+    "time": "01/Jul/1995:00:19:45 -0400",
+    "method": "HEAD",
+    "path": "/software/winvn/winvn.html",
+    "protocol": "HTTP/1.0",
+    "leaked_email": null,
+    "status": 200,
+    "bytes": 0
+  },
+  {
+    "ip": [
+      204,
+      212,
+      153,
+      234
+    ],
+    "time": "01/Jul/1995:00:51:19 -0400",
+    "method": "POST",
+    "path": "/cgi-bin/newwvn-mail.pl",
+    "protocol": "HTTP/1.0",
+    "leaked_email": null,
+    "status": 200,
+    "bytes": 703
+  },
+  {
+    "name": "pipe6.nyc.pipeline.com",
+    "time": "01/Jul/1995:00:22:43 -0400",
+    "method": "GET",
+    "path": "/shuttle/missions/sts-71/movies/sts-71-mir-dock.mpg",
+    "protocol": null,
+    "leaked_email": null,
+    "status": 200,
+    "bytes": 946425
+  },
+  {
+    "name": "blazemonger.pc.cc.cmu.edu",
+    "time": "11/Jul/1995:17:55:44 -0400",
+    "method": "GET",
+    "path": "/htbin/cdt_clock.pl",
+    "protocol": "HTTP/1.0",
+    "leaked_email": "berend@blazemonger.pc.cc.cmu.edu",
+    "status": 200,
+    "bytes": 751
+  }
+]

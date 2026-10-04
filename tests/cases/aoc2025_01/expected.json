@@ -1,0 +1,42 @@
+[
+  {
+    "dir": "L",
+    "steps": 68
+  },
+  {
+    "dir": "L",
+    "steps": 30
+  },
+  {
+    "dir": "R",
+    "steps": 48
+  },
+  {
+    "dir": "L",
+    "steps": 5
+  },
+  {
+    "dir": "R",
+    "steps": 60
+  },
+  {
+    "dir": "L",
+    "steps": 55
+  },
+  {
+    "dir": "L",
+    "steps": 1
+  },
+  {
+    "dir": "L",
+    "steps": 99
+  },
+  {
+    "dir": "R",
+    "steps": 14
+  },
+  {
+    "dir": "L",
+    "steps": 82
+  }
+]

@@ -1,0 +1,2 @@
+TEXT = 1 TO n big SKIPPING ANY
+big  = n:FLOAT WHERE NUM(n) > 10 AS NUM(n)

@@ -1,0 +1,14 @@
+---
+source: tests/parser.rs
+assertion_line: 142
+expression: "parse_err(\"TEXT = 'a' | 'b'\")"
+---
+txtql::parse::unexpected_char
+
+  × unexpected character `|`
+   ╭─[query:1:12]
+ 1 │ TEXT = 'a' | 'b'
+   ·            ┬
+   ·            ╰── not valid here
+   ╰────
+  help: alternatives are written with `OR`, e.g. `'a' OR 'b'`

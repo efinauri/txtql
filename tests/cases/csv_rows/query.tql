@@ -1,0 +1,3 @@
+TEXT = header:record 1 TO n rows:record
+record  = 1 TO n cells:cell SPLITBY ',' NL AS cells
+cell = WORD OR FLOAT

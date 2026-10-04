@@ -1,0 +1,6 @@
+-- key = value pairs, grouped under [section] headers
+TEXT    = 0 TO n comment 0 TO n top:pair 0 TO n sections:section
+          AS { top, sections }
+comment = '# ' ANY UNTIL NL
+pair    = key:WORD ' = ' value:(ANY UNTIL NL) AS { key: value }
+section = '[' name:WORD ']' NL 0 TO n pairs:pair AS { name: { pairs } }

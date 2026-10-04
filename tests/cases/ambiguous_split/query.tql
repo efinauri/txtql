@@ -1,0 +1,1 @@
+TEXT = first:(1 TO n WORD SPLITBY ' ') ' ' rest:(1 TO n WORD SPLITBY ' ') NL

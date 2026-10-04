@@ -1,0 +1,15 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 81d48cdad8a5aa806b83e39e796d674fddabca56e175c237bf9c234c144568b6 # shrinks to seed = 10841570382395270682
+cc 7efa50a5850af4a50a722b9606b97b7e7356f2b60e59e80fa1f355460df8cd65 # shrinks to seed = 3641806231332460146
+cc 457b4e357ce2df8069c9d6b78a8939e996f4415842898f3a4c4ed043413eed2d # shrinks to seed = 9285886418494863994
+cc 10a63af361e9945c75de82f8e52a775d4cb7800f06385a7c9b9efa783bbd9ef5 # shrinks to seed = 3543118872081088716
+cc ab6b3002ca61dbe7067805440cfbbe4a820af0df53237048531ab817124aa9a0 # shrinks to seed = 5747328614244046080
+cc afca34b5280ca7a7adbe531ee2375af926d9ec8f072a6e02dc534396937aaa32 # shrinks to seed = 2842573102374118234
+cc 5201b7b57ca206f99f786808f8c26b449f3d7b631cd61375e83061c05602511a # shrinks to seed = 7914928074950592958
+cc 784bfad8f0ddf29ee699a40bac544c51bd24c886bf1bb26df73ad19ce187a318 # shrinks to seed = 13782440127953703110
+cc 5491a716dd2256b3e792556227471e3a83920fe2e0f6757f169610edbda0f50f # shrinks to seed = 13185120350924033224

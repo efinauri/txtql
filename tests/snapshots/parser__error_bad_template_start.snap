@@ -1,0 +1,13 @@
+---
+source: tests/parser.rs
+assertion_line: 223
+expression: "parse_err(\"TEXT = x:WORD AS )\")"
+---
+txtql::parse::unexpected_token
+
+  × expected a value (string, number, name, `{`, or `[`), found `)`
+   ╭─[query:1:18]
+ 1 │ TEXT = x:WORD AS )
+   ·                  ┬
+   ·                  ╰── unexpected `)`
+   ╰────

@@ -1,0 +1,15 @@
+---
+source: tests/check.rs
+assertion_line: 203
+expression: "warnings(\"list = WORD ',' list OR WORD\\nTEXT = list\")"
+---
+txtql::lint::right_recursion
+
+  ⚠ rule `list` is right-recursive
+   ╭─[query:1:17]
+ 1 │ list = WORD ',' list OR WORD
+   ·                 ──┬─
+   ·                   ╰── recursive reference at the end of the rule
+ 2 │ TEXT = list
+   ╰────
+  help: right recursion makes matching quadratic; a repetition such as `1 TO n x` is linear

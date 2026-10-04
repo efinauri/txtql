@@ -1,0 +1,41 @@
+-- A game playtest session log: a header, one event per line (a crash adds a stack trace), a footer.
+TEXT = session:header 1 TO n events:entry summary:footer
+
+header = '=== playtest ' date:(ANY UNTIL sp) 'build ' build:(ANY UNTIL sp) '(' platform:(ANY UNTIL ')')
+         ' tester=' tester:WORD ' ===' NL
+entry  = '[' time:(ANY UNTIL ']') ' ' level:WORD pad system:WORD ': '
+         event:(click OR key OR pos OR damage OR fps OR scene OR asset OR quest OR crash) NL
+    AS { 'time': time, 'level': LOWER(level), 'system': system, event }
+footer = '=== end: ' frames:INT ' frames, avg fps ' fps:FLOAT ' ===' NL
+    AS { 'frames': NUM(frames), 'avg_fps': NUM(fps) }
+
+-- One rule per kind of event.
+click  = 'click at (' x:signed ', ' y:signed ') button=' button:WORD
+    AS { 'type': 'click', 'at': [ NUM(x), NUM(y) ], 'button': button }
+key    = 'key ' key:WORD sp state:('down' OR 'up')
+    AS { 'type': 'key', 'key': key, 'state': state }
+pos    = 'pos=(' x:signed ', ' y:signed ', ' z:signed ') hp=' hp:INT '/' max:INT
+    AS { 'type': 'position', 'at': [ NUM(x), NUM(y), NUM(z) ], 'hp': NUM(hp), 'max_hp': NUM(max) }
+damage = 'damage ' amount:INT ' from ' source:(enemy OR WORD) ' hp=' hp:INT '/' INT
+    AS { 'type': 'damage', 'amount': NUM(amount), 'source': source, 'hp': NUM(hp) }
+fps    = 'fps dropped to ' fps:INT ' (target ' target:INT ') in scene ' scene:quoted
+    AS { 'type': 'fps_drop', 'fps': NUM(fps), 'target': NUM(target), 'scene': scene }
+scene  = 'loaded scene ' name:quoted ' in ' secs:FLOAT 's'
+    AS { 'type': 'scene_load', 'scene': name, 'seconds': NUM(secs) }
+asset  = 'asset missing: ' path:rest AS { 'type': 'missing_asset', 'path': path }
+quest  = state:('started' OR 'completed') ' #' id:INT sp name:quoted 0 TO 1 reward
+    AS { 'type': 'quest', 'state': state, 'id': NUM(id), 'name': name, 'reward_xp': reward }
+crash  = 'crash in ' function:(ANY UNTIL ' (') reason:(ANY UNTIL ')') 1 TO n trace:frame
+    AS { 'type': 'crash', 'function': function, 'reason': reason, 'trace': trace }
+
+-- The pieces events are made of.
+enemy  = kind:WORD '#' id:INT AS { 'kind': kind, 'id': NUM(id) }
+reward = ' reward=' xp:INT 'xp' AS NUM(xp)
+frame  = NL '  at ' file:(ANY UNTIL ':') ln:INT AS { 'file': file, 'line': NUM(ln) }
+quoted = '"' text:(ANY UNTIL '"') AS text
+
+ALIAS sp     = ' '
+ALIAS pad    = 1 TO n ' '
+ALIAS rest   = ANY UNTILBEFORE NL
+-- Screen and world coordinates can be negative (a click just outside the window).
+ALIAS signed = 0 TO 1 '-' FLOAT

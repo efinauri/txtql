@@ -1,0 +1,15 @@
+---
+source: tests/check.rs
+assertion_line: 211
+expression: "warnings(\"unused = WORD\\nTEXT = FLOAT\")"
+---
+txtql::lint::unused_rule
+
+  ⚠ rule `unused` is never used
+   ╭─[query:1:1]
+ 1 │ unused = WORD
+   · ───┬──
+   ·    ╰── unused
+ 2 │ TEXT = FLOAT
+   ╰────
+  help: reference it from `TEXT` (directly or indirectly), or remove it

@@ -1,0 +1,22 @@
+---
+source: tests/eval.rs
+assertion_line: 317
+expression: "run_err(\"TEXT = w:WORD AS NUM(w)\", \"hello\")"
+---
+txtql::eval::error
+
+  × cannot convert "hello" to a number
+   ╭─[query:1:18]
+ 1 │ TEXT = w:WORD AS NUM(w)
+   ·                  ───┬──
+   ·                     ╰── while evaluating this
+   ╰────
+  help: NUM accepts text such as "42" or "3.5"
+
+Advice: 
+  ☞ in this part of the input
+   ╭─[input:1:1]
+ 1 │ hello
+   · ──┬──
+   ·   ╰── matched text
+   ╰────

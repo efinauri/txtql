@@ -1,0 +1,15 @@
+// Settings for the LSP package (Preferences → Package Settings → LSP → Settings).
+// If you already have this file, merge these two entries into it.
+{
+	// Colours from the language server: rules, aliases, labels and captures each get their own.
+	// Needs the `meta.semantic-token` rule in the colour scheme (see the *.sublime-color-scheme files).
+	"semantic_highlighting": true,
+	"clients": {
+		"txtql": {
+			"enabled": true,
+			// Use the full path (e.g. "/usr/local/bin/txtql") if Sublime does not see your shell's PATH.
+			"command": ["txtql", "lsp"],
+			"selector": "source.txtql",
+		},
+	},
+}

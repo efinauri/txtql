@@ -1,0 +1,3 @@
+-- Advent of Code 2025, day 8: Playground (https://adventofcode.com/2025/day/8)
+TEXT = 1 TO n box
+box  = x:INT ',' y:INT ',' z:INT NL AS [ NUM(x), NUM(y), NUM(z) ]

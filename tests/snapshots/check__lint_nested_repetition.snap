@@ -1,0 +1,16 @@
+---
+source: tests/check.rs
+assertion_line: 201
+expression: "warnings(\"TEXT = 1 TO n (1 TO n WORD)\")"
+---
+txtql::lint::nested_repetition
+
+  ⚠ nested unlimited repetition
+   ╭─[query:1:8]
+ 1 │ TEXT = 1 TO n (1 TO n WORD)
+   ·        ───┬──  ───┬──
+   ·           │       ╰── inner repetition
+   ·           ╰── outer repetition
+   ╰────
+  help: `1 TO n (1 TO n x)` can split the text in exponentially many ways; add a separator or a
+        literal to anchor the inner repetition

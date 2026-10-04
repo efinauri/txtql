@@ -1,0 +1,12 @@
+[
+  {
+    "at": "2024-01-01T12:00:01",
+    "level": "info",
+    "message": "server started port=8080"
+  },
+  {
+    "at": "2024-01-01T12:00:05",
+    "level": "error",
+    "message": "connection refused host=db.local"
+  }
+]

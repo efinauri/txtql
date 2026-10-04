@@ -1,0 +1,14 @@
+---
+source: tests/parser.rs
+assertion_line: 193
+expression: "parse_err(\"TEXT = x:WORD AS x WHERE x\")"
+---
+txtql::parse::unexpected_token
+
+  × expected the next rule or end of query, found keyword `WHERE`
+   ╭─[query:1:20]
+ 1 │ TEXT = x:WORD AS x WHERE x
+   ·                    ──┬──
+   ·                      ╰── unexpected keyword `WHERE`
+   ╰────
+  help: `WHERE` must come before `AS`

@@ -1,0 +1,13 @@
+---
+source: tests/compile.rs
+assertion_line: 89
+expression: "dump(\"TEXT = a:WORD b:WORD OR c:FLOAT\")"
+---
+nt0 rule `TEXT` (Rule(0)) start=s0
+  names: [["a", "b"], ["c"]]
+  s0
+    -> s2 WORD as a
+    -> s1 FLOAT as c
+  s1 accept
+  s2
+    -> s1 WORD as b

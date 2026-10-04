@@ -1,0 +1,18 @@
+---
+source: tests/check.rs
+assertion_line: 25
+expression: "compile_err(\"a = WORD\\na = FLOAT\\nTEXT = a\")"
+---
+txtql::check::duplicate_rule
+
+  × `a` is defined more than once
+   ╭─[query:1:1]
+ 1 │ a = WORD
+   · ┬
+   · ╰── first definition
+ 2 │ a = FLOAT
+   · ┬
+   · ╰── redefined here
+ 3 │ TEXT = a
+   ╰────
+  help: rules and aliases share one set of names; rename one of them

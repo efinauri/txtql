@@ -1,0 +1,10 @@
+---
+source: tests/stress.rs
+assertion_line: 142
+expression: "render(&e.reports(\"query\", \"TEXT = 1 TO n WORD\", \"input\", \"w\"))"
+---
+txtql::input::too_expensive
+
+  × the query is too expensive for this input (more than 50 steps)
+  help: raise the limit with --max-steps, or make the query less ambiguous (fewer nested
+        repetitions, more literals)

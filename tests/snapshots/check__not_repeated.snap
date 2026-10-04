@@ -1,0 +1,14 @@
+---
+source: tests/check.rs
+expression: "compile_err(\"TEXT = x:WORD AS [ y FOR x ]\")"
+---
+txtql::check::not_repeated
+
+  × `FOR` needs a repeated value, but `x` is text
+   ╭─[query:1:26]
+ 1 │ TEXT = x:WORD AS [ y FOR x ]
+   ·                          ┬
+   ·                          ╰── not a list
+   ╰────
+  help: lists come from captures inside a repetition of more than one item, e.g. `1 TO n` (`0 TO
+        1` gives one value or null)

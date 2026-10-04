@@ -1,0 +1,2 @@
+Set-Cookie: a=1
+Set-Cookie: b=2

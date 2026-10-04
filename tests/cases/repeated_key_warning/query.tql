@@ -1,0 +1,3 @@
+-- Without LISTOF, a repeated key keeps the later value and is reported.
+TEXT   = 1 TO n hs:header AS { LOWER(h.name): h.value FOR h IN hs }
+header = name:(ANY UNTIL ': ') value:(ANY UNTIL NL)

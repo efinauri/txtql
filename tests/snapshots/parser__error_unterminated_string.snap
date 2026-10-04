@@ -1,0 +1,14 @@
+---
+source: tests/parser.rs
+assertion_line: 208
+expression: "parse_err(\"TEXT = 'abc\\nb = WORD\")"
+---
+txtql::parse::unterminated_string
+
+  × unterminated string
+   ╭─[query:1:8]
+ 1 │ ╭─▶ TEXT = 'abc
+ 2 │ ├─▶ b = WORD
+   · ╰──── this string never ends
+   ╰────
+  help: close the string with a matching quote

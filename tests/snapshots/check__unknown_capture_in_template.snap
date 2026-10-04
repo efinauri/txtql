@@ -1,0 +1,15 @@
+---
+source: tests/check.rs
+assertion_line: 66
+expression: "compile_err(\"colors = 1 TO n WORD\\nTEXT = noun:WORD colors AS { noun: colours }\")"
+---
+txtql::check::unknown_capture
+
+  × `colours` is not captured here
+   ╭─[query:2:36]
+ 1 │ colors = 1 TO n WORD
+ 2 │ TEXT = noun:WORD colors AS { noun: colours }
+   ·                                    ───┬───
+   ·                                       ╰── unknown name
+   ╰────
+  help: did you mean `colors`?

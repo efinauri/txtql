@@ -1,0 +1,27 @@
+[
+  {
+    "line": 1,
+    "key": "colors",
+    "column": 9,
+    "words": [
+      "red",
+      "green"
+    ]
+  },
+  {
+    "line": 2,
+    "key": "sizes",
+    "column": 9,
+    "words": [
+      "s",
+      "m",
+      "l"
+    ]
+  },
+  {
+    "line": 3,
+    "key": "empty",
+    "column": 7,
+    "words": []
+  }
+]

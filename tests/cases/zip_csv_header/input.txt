@@ -1,0 +1,3 @@
+name,city,age
+Ada,London,36
+Bob,Paris

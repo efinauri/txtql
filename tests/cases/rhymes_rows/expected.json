@@ -1,0 +1,21 @@
+[
+  {
+    "noun": "roses",
+    "colors": [
+      "red"
+    ]
+  },
+  {
+    "noun": "violets",
+    "colors": [
+      "blue"
+    ]
+  },
+  {
+    "noun": "bees",
+    "colors": [
+      "black",
+      "yellow"
+    ]
+  }
+]

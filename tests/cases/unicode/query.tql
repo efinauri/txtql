@@ -1,0 +1,2 @@
+TEXT = 1 TO n pair AS { pair }
+pair = city:(ANY UNTIL ' — ') country:(ANY UNTIL NL) AS { city: country }

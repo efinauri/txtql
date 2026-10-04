@@ -1,0 +1,21 @@
+---
+source: tests/eval.rs
+assertion_line: 314
+expression: "run_err(\"TEXT = w:WORD WHERE w > 5\", \"abc\")"
+---
+txtql::eval::error
+
+  × cannot compare "abc" (text) with 5 (a number) using `>`
+   ╭─[query:1:21]
+ 1 │ TEXT = w:WORD WHERE w > 5
+   ·                     ──┬──
+   ·                       ╰── while evaluating this
+   ╰────
+
+Advice: 
+  ☞ in this part of the input
+   ╭─[input:1:1]
+ 1 │ abc
+   · ─┬─
+   ·  ╰── matched text
+   ╰────

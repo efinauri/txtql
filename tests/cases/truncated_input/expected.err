@@ -1,0 +1,9 @@
+txtql::input::no_parse
+
+  × the text does not match the query
+   ╭─[input.txt:1:10]
+ 1 │ roses are 
+   ·          ┬
+   ·          ╰── expected WORD after this
+   ╰────
+  help: the text ended before the query was complete

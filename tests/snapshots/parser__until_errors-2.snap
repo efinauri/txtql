@@ -1,0 +1,12 @@
+---
+source: tests/parser.rs
+expression: "parse_err(\"TEXT = ANY UNTILBEFORE ',' UNTIL ';'\")"
+---
+txtql::parse::unexpected_token
+
+  × expected a pattern, `WHERE`, `AS`, the next rule, or end of query, found keyword `UNTIL`
+   ╭─[query:1:28]
+ 1 │ TEXT = ANY UNTILBEFORE ',' UNTIL ';'
+   ·                            ──┬──
+   ·                              ╰── unexpected keyword `UNTIL`
+   ╰────

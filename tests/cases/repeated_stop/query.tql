@@ -1,0 +1,5 @@
+-- Column output padded with any number of spaces: a stop may repeat, and UNTIL takes all of it.
+TEXT = LINE NL 1 TO n fs AS fs
+fs   = device:(ANY UNTIL sp) size:(ANY UNTIL sp) used:(ANY UNTIL sp) mount:(ANY UNTIL NL)
+
+ALIAS sp = 1 TO n ' '

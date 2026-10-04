@@ -1,0 +1,28 @@
+---
+source: tests/check.rs
+assertion_line: 268
+expression: "compile_err(\"ALIAS date = y:FLOAT '-' m:FLOAT\\nTEXT = date\")"
+---
+txtql::check::label_in_alias
+
+  × aliases cannot capture: `y` is labelled inside one
+   ╭─[query:1:14]
+ 1 │ ALIAS date = y:FLOAT '-' m:FLOAT
+   ·              ───┬───
+   ·                 ╰── label inside an alias
+ 2 │ TEXT = date
+   ╰────
+  help: label the alias where it is used (`x:alias`), or write a rule instead if you need captures
+        inside it
+
+txtql::check::label_in_alias
+
+  × aliases cannot capture: `m` is labelled inside one
+   ╭─[query:1:26]
+ 1 │ ALIAS date = y:FLOAT '-' m:FLOAT
+   ·                          ───┬───
+   ·                             ╰── label inside an alias
+ 2 │ TEXT = date
+   ╰────
+  help: label the alias where it is used (`x:alias`), or write a rule instead if you need captures
+        inside it

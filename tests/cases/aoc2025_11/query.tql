@@ -1,0 +1,3 @@
+-- Advent of Code 2025, day 11: Reactor (https://adventofcode.com/2025/day/11)
+TEXT   = 1 TO n device AS { device }
+device = name:WORD ': ' 1 TO n outputs:WORD SPLITBY ' ' NL AS { name: outputs }

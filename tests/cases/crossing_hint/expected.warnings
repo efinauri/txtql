@@ -1,0 +1,18 @@
+txtql::input::ambiguous
+
+  ⚠ ambiguous match in rule `TEXT`: the text can be read in two ways with different results
+   ╭─[input.txt:1:1]
+ 1 │ ╭──▶ a.rs | 3
+ 2 │ │├─▶ total 3
+   · │╰──── alternative: `block` = "a.rs | 3 total 3"
+ 3 │ │    
+ 4 │ │    b.rs | 4
+ 5 │ ├──▶ total 4
+   · ╰───── chosen: `block` = "a.rs | 3 total 3 b.rs | 4 total 4"
+   ╰────
+  help: txtql picked the first reading, which gives [["a.rs","total 3\n\nb.rs"]]; the other gives
+        [["a.rs"],["b.rs"]].
+        In the chosen reading, `ANY UNTILBEFORE ' |'` runs across line breaks (ANY includes them).
+        - To keep it on one line, add NL to its stop: `ANY UNTILBEFORE (' |' OR NL)`
+        - If it should cross lines, make the stop say where it ends, e.g. `UNTILBEFORE (NL '[' OR
+        NL EOF)`.

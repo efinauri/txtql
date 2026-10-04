@@ -1,0 +1,15 @@
+---
+source: tests/check.rs
+assertion_line: 127
+expression: "compile_err(\"TEXT = 1 TO n (0 TO 1 WORD)\")"
+---
+txtql::check::empty_loop
+
+  × this repetition can match empty text
+   ╭─[query:1:15]
+ 1 │ TEXT = 1 TO n (0 TO 1 WORD)
+   ·               ──────┬──────
+   ·                     ╰── repeated pattern may be empty
+   ╰────
+  help: a repeated pattern must consume at least one character, or be split by a separator that
+        does

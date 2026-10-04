@@ -1,0 +1,13 @@
+---
+source: tests/parser.rs
+expression: "parse_err(\"TEXT = x:WORD AS { x y }\")"
+---
+txtql::parse::unexpected_token
+
+  × expected `:`, `,` or `}`, found identifier `y`
+   ╭─[query:1:22]
+ 1 │ TEXT = x:WORD AS { x y }
+   ·                      ┬
+   ·                      ╰── unexpected identifier `y`
+   ╰────
+  help: object entries are written `key: value`, or `name` alone to merge an object

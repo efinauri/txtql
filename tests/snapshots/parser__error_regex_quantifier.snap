@@ -1,0 +1,14 @@
+---
+source: tests/parser.rs
+assertion_line: 147
+expression: "parse_err(\"TEXT = WORD+\")"
+---
+txtql::parse::unexpected_char
+
+  × unexpected character `+`
+   ╭─[query:1:12]
+ 1 │ TEXT = WORD+
+   ·            ┬
+   ·            ╰── not valid here
+   ╰────
+  help: repetition is written as `a TO b pattern`, e.g. `1 TO n WORD` or `0 TO 1 WORD`

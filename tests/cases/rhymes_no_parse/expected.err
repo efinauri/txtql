@@ -1,0 +1,10 @@
+txtql::input::no_parse
+
+  × the text does not match the query
+   ╭─[input.txt:2:8]
+ 1 │ roses are red
+ 2 │ violets is blue
+   ·        ┬
+   ·        ╰── expected ' are '
+   ╰────
+  help: the text matched up to here; found " is blue"

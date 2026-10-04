@@ -1,0 +1,15 @@
+---
+source: tests/check.rs
+assertion_line: 20
+expression: "compile_err(\"a = WORD\")"
+---
+txtql::check::missing_root
+
+  × the query has no `TEXT` rule
+   ╭─[query:1:1]
+ 1 │ a = WORD
+   · ────┬───
+   ·     ╰── the query
+   ╰────
+  help: add a rule named `TEXT`; it is matched against the whole input, e.g. `TEXT = 1 TO n LINE
+        SPLITBY NL`

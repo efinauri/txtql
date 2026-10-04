@@ -1,0 +1,6 @@
+-- `path` stops at a space, which the old-style request on line 2 does not have before its
+-- closing quote, so `protocol` runs on into line 3. The error points at both places.
+TEXT  = 1 TO n entry
+entry = host:(ANY UNTIL ' ') '- - [' time:(ANY UNTIL ']') ' "'
+        method:WORD ' ' path:(ANY UNTIL ' ') protocol:(ANY UNTIL '"') ' '
+        status:FLOAT ' ' bytes:FLOAT NL

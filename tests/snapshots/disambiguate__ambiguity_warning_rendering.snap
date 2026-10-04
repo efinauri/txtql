@@ -1,0 +1,17 @@
+---
+source: tests/disambiguate.rs
+expression: "render(&txtql::ambiguity_reports(&o.ambiguities, \"input\", input))"
+---
+txtql::input::ambiguous
+
+  ⚠ ambiguous match in rule `TEXT`: the text can be read in two ways with different results
+   ╭─[input:1:1]
+ 1 │ 1234
+   · ─┬─┬
+   ·  │ ╰── alternative: repetition = "12"
+   ·  ╰── chosen: repetition = "123"
+   ╰────
+  help: txtql picked the first reading, which gives {"first":["1","2","3"],"rest":["4"]}; the
+        other gives {"first":["1","2"],"rest":["3","4"]}.
+        Make the pattern more specific (literals, SPLITBY, LAZY) if the other reading was
+        intended.

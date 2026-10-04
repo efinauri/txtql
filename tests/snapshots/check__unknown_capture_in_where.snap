@@ -1,0 +1,14 @@
+---
+source: tests/check.rs
+assertion_line: 76
+expression: "compile_err(\"TEXT = x:WORD WHERE y = 'a'\")"
+---
+txtql::check::unknown_capture
+
+  × `y` is not captured here
+   ╭─[query:1:21]
+ 1 │ TEXT = x:WORD WHERE y = 'a'
+   ·                     ┬
+   ·                     ╰── unknown name
+   ╰────
+  help: did you mean `x`?

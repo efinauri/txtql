@@ -1,0 +1,14 @@
+---
+source: tests/check.rs
+assertion_line: 157
+expression: "compile_err(\"TEXT = 1 TO 20000 WORD\")"
+---
+txtql::check::bound_too_large
+
+  × repetition bound 20000 is too large
+   ╭─[query:1:8]
+ 1 │ TEXT = 1 TO 20000 WORD
+   ·        ───────┬───────
+   ·               ╰── here
+   ╰────
+  help: finite bounds are limited to 10000; use `n` for an unlimited repetition

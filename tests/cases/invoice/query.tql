@@ -1,0 +1,7 @@
+TEXT = 'Invoice #' id:INT NL
+       'Date: ' date:(INT '-' INT '-' INT) NL
+       'Items:' NL 1 TO n items:item
+       'Total: ' total:FLOAT NL
+    AS { 'id': NUM(id), 'date': date, 'items': items, 'total': NUM(total) }
+item = '- ' name:WORD ' x ' qty:INT ' @ ' price:FLOAT NL
+    AS { 'name': name, 'qty': NUM(qty), 'price': NUM(price) }

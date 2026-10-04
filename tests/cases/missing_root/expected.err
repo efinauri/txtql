@@ -1,0 +1,10 @@
+txtql::check::missing_root
+
+  × the query has no `TEXT` rule
+   ╭─[query.tql:1:1]
+ 1 │ rhyme = WORD ' are ' WORD
+   · ─────────────┬────────────
+   ·              ╰── the query
+   ╰────
+  help: add a rule named `TEXT`; it is matched against the whole input, e.g. `TEXT = 1 TO n LINE
+        SPLITBY NL`

@@ -1,0 +1,14 @@
+---
+source: tests/check.rs
+assertion_line: 183
+expression: "compile_err(\"TEXT = WORD ''\")"
+---
+txtql::check::empty_literal
+
+  × empty literal
+   ╭─[query:1:13]
+ 1 │ TEXT = WORD ''
+   ·             ─┬
+   ·              ╰── matches nothing
+   ╰────
+  help: a literal must contain at least one character

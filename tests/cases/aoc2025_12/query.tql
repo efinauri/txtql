@@ -1,0 +1,8 @@
+-- Advent of Code 2025, day 12: Christmas Tree Farm (https://adventofcode.com/2025/day/12)
+-- Shapes (a numbered grid followed by a blank line), then one region per line.
+TEXT   = 1 TO n shapes:shape 1 TO n regions:region
+shape  = id:INT ':' NL 1 TO n rows:gridrow NL
+    AS { 'id': NUM(id), 'rows': rows }
+region = w:INT 'x' h:INT ': ' 1 TO n counts:INT SPLITBY ' ' NL
+    AS { 'width': NUM(w), 'height': NUM(h), 'counts': [ NUM(c) FOR c IN counts ] }
+gridrow    = 1 TO n cells:('#' OR '.') NL AS cells

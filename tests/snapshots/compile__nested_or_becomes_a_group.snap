@@ -1,0 +1,16 @@
+---
+source: tests/compile.rs
+assertion_line: 28
+expression: "dump(\"TEXT = 'a' ('b' OR 'c')\")"
+---
+nt0 rule `TEXT` (Rule(0)) start=s0
+  s0
+    -> s4 'a'
+  s3 accept
+  s4
+    -> s3 nt1
+nt1 group (Group) start=s1
+  s1
+    -> s2 'b'
+    -> s2 'c'
+  s2 accept

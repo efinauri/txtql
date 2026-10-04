@@ -1,0 +1,15 @@
+---
+source: tests/check.rs
+assertion_line: 40
+expression: "compile_err(\"TEXT = x:WORD x:FLOAT\")"
+---
+txtql::check::duplicate_capture
+
+  × capture `x` appears twice in the same match
+   ╭─[query:1:8]
+ 1 │ TEXT = x:WORD x:FLOAT
+   ·        ───┬── ───┬───
+   ·           │      ╰── captured again here
+   ·           ╰── first capture
+   ╰────
+  help: give one of them a different name with a label, e.g. `other:x`

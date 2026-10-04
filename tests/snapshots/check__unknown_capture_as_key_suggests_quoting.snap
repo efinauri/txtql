@@ -1,0 +1,15 @@
+---
+source: tests/check.rs
+assertion_line: 71
+expression: "compile_err(\"TEXT = x:WORD AS { name: x }\")"
+---
+txtql::check::unknown_capture
+
+  × `name` is not captured here
+   ╭─[query:1:20]
+ 1 │ TEXT = x:WORD AS { name: x }
+   ·                    ──┬─
+   ·                      ╰── unknown name
+   ╰────
+  help: available names: x
+        to use `name` as a fixed key, quote it: 'name'

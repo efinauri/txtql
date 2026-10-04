@@ -1,0 +1,12 @@
+---
+source: tests/compile.rs
+assertion_line: 23
+expression: "dump(\"TEXT = 'a' 'b' OR 'c'\")"
+---
+nt0 rule `TEXT` (Rule(0)) start=s0
+  s0
+    -> s2 'a'
+    -> s1 'c'
+  s1 accept
+  s2
+    -> s1 'b'

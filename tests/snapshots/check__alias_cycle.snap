@@ -1,0 +1,17 @@
+---
+source: tests/check.rs
+assertion_line: 268
+expression: "compile_err(\"ALIAS a = 'x' b\\nALIAS b = 'y' OR a\\nTEXT = a\")"
+---
+txtql::check::alias_cycle
+
+  × alias `a` refers to itself
+   ╭─[query:2:18]
+ 1 │ ALIAS a = 'x' b
+ 2 │ ALIAS b = 'y' OR a
+   ·                  ┬
+   ·                  ╰── this reference leads back to the alias
+ 3 │ TEXT = a
+   ╰────
+  help: an alias is replaced by its pattern where it is used, so it cannot be recursive; use a
+        rule

@@ -1,0 +1,49 @@
+txtql::lint::nested_repetition
+
+  ⚠ nested unlimited repetition
+   ╭─[query.tql:2:8]
+ 1 │ -- Found by fuzzing: the lint on the nested repetition used to hide the empty-loop error.
+ 2 │ TEXT = 0 TO n (0 TO n (0 TO n WORD))
+   ·        ───┬──  ───┬──
+   ·           │       ╰── inner repetition
+   ·           ╰── outer repetition
+   ╰────
+  help: `1 TO n (1 TO n x)` can split the text in exponentially many ways; add a separator or a
+        literal to anchor the inner repetition
+
+txtql::check::empty_loop
+
+  × this repetition can match empty text
+   ╭─[query.tql:2:15]
+ 1 │ -- Found by fuzzing: the lint on the nested repetition used to hide the empty-loop error.
+ 2 │ TEXT = 0 TO n (0 TO n (0 TO n WORD))
+   ·               ───────────┬──────────
+   ·                          ╰── repeated pattern may be empty
+   ╰────
+  help: a repeated pattern must consume at least one character, or be split by a separator that
+        does
+
+txtql::lint::nested_repetition
+
+  ⚠ nested unlimited repetition
+   ╭─[query.tql:2:16]
+ 1 │ -- Found by fuzzing: the lint on the nested repetition used to hide the empty-loop error.
+ 2 │ TEXT = 0 TO n (0 TO n (0 TO n WORD))
+   ·                ───┬──  ───┬──
+   ·                   │       ╰── inner repetition
+   ·                   ╰── outer repetition
+   ╰────
+  help: `1 TO n (1 TO n x)` can split the text in exponentially many ways; add a separator or a
+        literal to anchor the inner repetition
+
+txtql::check::empty_loop
+
+  × this repetition can match empty text
+   ╭─[query.tql:2:23]
+ 1 │ -- Found by fuzzing: the lint on the nested repetition used to hide the empty-loop error.
+ 2 │ TEXT = 0 TO n (0 TO n (0 TO n WORD))
+   ·                       ──────┬──────
+   ·                             ╰── repeated pattern may be empty
+   ╰────
+  help: a repeated pattern must consume at least one character, or be split by a separator that
+        does

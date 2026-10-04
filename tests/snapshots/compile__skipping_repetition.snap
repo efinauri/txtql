@@ -1,0 +1,15 @@
+---
+source: tests/compile.rs
+expression: "dump(\"TEXT = 1 TO n FLOAT SKIPPING ANY\")"
+---
+nt0 rule `TEXT` (Rule(0)) start=s0
+  s0
+    -> s3 nt1
+  s3 accept
+nt1 repetition (Rep { lazy: false, single: false }) start=s1
+  s1
+    -> s2 FLOAT [Item]
+    -> s1 any character [Skip]
+  s2 accept
+    -> s2 FLOAT [Item]
+    -> s2 any character [Skip]

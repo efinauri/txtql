@@ -1,0 +1,6 @@
+-- Log entries that may continue on more lines (a Python traceback). Each entry ends at a
+-- line break followed by a digit (the next timestamp) or by the end of the text.
+TEXT  = 1 TO n entry
+entry = date:(INT '-' INT '-' INT) ' ' time:(INT ':' INT ':' INT) ' ' level:WORD ' '
+        msg:(ANY UNTILBEFORE (NL DIGIT OR NL EOF)) NL
+    AS { 'at': JOIN([date, time], ' '), 'level': level, 'message': msg }

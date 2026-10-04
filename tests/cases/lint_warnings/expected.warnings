@@ -1,0 +1,37 @@
+txtql::lint::nested_repetition
+
+  ⚠ nested unlimited repetition
+   ╭─[query.tql:1:8]
+ 1 │ TEXT = 1 TO n groups:(1 TO n LETTER) NL
+   ·        ───┬──         ───┬──
+   ·           │              ╰── inner repetition
+   ·           ╰── outer repetition
+ 2 │ unused = FLOAT
+   ╰────
+  help: `1 TO n (1 TO n x)` can split the text in exponentially many ways; add a separator or a
+        literal to anchor the inner repetition
+
+txtql::lint::unused_rule
+
+  ⚠ rule `unused` is never used
+   ╭─[query.tql:2:1]
+ 1 │ TEXT = 1 TO n groups:(1 TO n LETTER) NL
+ 2 │ unused = FLOAT
+   · ───┬──
+   ·    ╰── unused
+   ╰────
+  help: reference it from `TEXT` (directly or indirectly), or remove it
+
+txtql::input::ambiguous
+
+  ⚠ ambiguous match in rule `TEXT`: the text can be read in two ways with different results
+   ╭─[input.txt:1:1]
+ 1 │ ab
+   · ─┬┬
+   ·  │╰── alternative: `groups` = "a"
+   ·  ╰── chosen: `groups` = "ab"
+   ╰────
+  help: txtql picked the first reading, which gives {"groups":["ab"]}; the other gives {"groups":
+        ["a","b"]}.
+        Make the pattern more specific (literals, SPLITBY, LAZY) if the other reading was
+        intended.

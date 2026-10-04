@@ -1,0 +1,14 @@
+---
+source: tests/check.rs
+assertion_line: 175
+expression: "compile_err(\"TEXT = x:WORD AS LOWR(x)\")"
+---
+txtql::check::unknown_function
+
+  × unknown function `LOWR`
+   ╭─[query:1:18]
+ 1 │ TEXT = x:WORD AS LOWR(x)
+   ·                  ──┬─
+   ·                    ╰── unknown function
+   ╰────
+  help: did you mean `LOWER`?

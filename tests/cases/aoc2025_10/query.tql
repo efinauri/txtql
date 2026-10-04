@@ -1,0 +1,11 @@
+-- Advent of Code 2025, day 10: Factory (https://adventofcode.com/2025/day/10)
+TEXT    = 1 TO n machine
+machine = '[' diagram:(1 TO n ('.' OR '#')) '] '
+          1 TO n buttons:button SPLITBY ' ' ' '
+          '{' 1 TO n joltage:INT SPLITBY ',' '}' NL
+    AS {
+        'lights':  diagram,
+        'buttons': buttons,
+        'joltage': [ NUM(j) FOR j IN joltage ]
+    }
+button  = '(' 1 TO n lights:INT SPLITBY ',' ')' AS [ NUM(l) FOR l IN lights ]

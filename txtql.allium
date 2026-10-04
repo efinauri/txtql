@@ -1,0 +1,283 @@
+-- allium: 3
+-- txtql.allium
+--
+-- txtql extracts structured JSON from free text with readable grammar rules instead of
+-- regular expressions:
+--
+--     TEXT   = 1 TO n rhyme                    AS { rhyme }
+--     rhyme  = noun:WORD ' are ' colors NL AS { noun: colors }
+--     colors = 1 TO n color SPLITBY (' and ' OR ', ')
+--     color  = WORD
+--
+-- turns "roses are red\nbees are black and yellow\n" into
+-- { "roses": ["red"], "bees": ["black", "yellow"] }.
+--
+-- This is the entry module: the command-line tool and how its pieces fit together.
+--
+-- Scope (whole project, distilled from the implementation and tests only; SPEC.md was
+-- deliberately not consulted):
+--   spec/language.allium     the query language and its semantics
+--   spec/diagnostics.allium  diagnostic codes and how problems are presented
+--   spec/compilation.allium  parsing and static checks
+--   spec/running.allium      matching, disambiguation, output, ambiguity, limits
+--   spec/editor.allium       the language server
+--   this file                the `txtql` command (run, check, lsp)
+-- Excludes:
+--   - installation and editor packaging beyond what the language server needs
+--   - the test, benchmark and fuzzing harnesses (tests/, benches/, fuzz/); their promises
+--     (no crashes, bounded work, linear scaling) appear as guarantees instead
+--   - internal representations: the Earley chart, NFAs, budgets, stack segments
+
+use "./spec/language.allium" as lang
+use "./spec/diagnostics.allium" as diag
+use "./spec/compilation.allium" as comp
+use "./spec/running.allium" as running
+use "./spec/editor.allium" as editor
+
+------------------------------------------------------------
+-- Value Types
+------------------------------------------------------------
+
+-- Where the query comes from: `QUERY_FILE`, or `-e 'QUERY'` inline.
+value QuerySource {
+    inline_text: String?
+    file: String?
+}
+
+-- Run flags. Defaults: not strict, pretty output, max_steps = running default,
+-- max_depth = config.cli_max_depth, ambiguity check on.
+value RunFlags {
+    strict: Boolean
+    compact: Boolean
+    max_steps: Integer
+    max_depth: Integer
+    no_ambiguity_check: Boolean
+}
+
+------------------------------------------------------------
+-- Entities and Variants
+------------------------------------------------------------
+
+-- One use of the `txtql` command.
+entity Invocation {
+    command: run_command | check_command
+    query_source: QuerySource
+    -- Path of the input; absent or `-` means standard input. For `check`, absent means no
+    -- sample.
+    input_path: String?
+    flags: RunFlags
+    status: compiling | reading_input | running | finished
+    compilation: comp/Compilation?
+    run: running/Run?
+    exit_code: Integer when status = finished
+
+    query_settled: compilation != null and compilation.status != submitted
+
+    transitions status {
+        compiling -> reading_input
+        compiling -> finished
+        reading_input -> running
+        reading_input -> finished
+        running -> finished
+        terminal: finished
+    }
+}
+
+------------------------------------------------------------
+-- Config
+------------------------------------------------------------
+
+config {
+    -- The command line uses the library's nesting limit by default (10,000); --max-depth
+    -- changes it for `run`. Like the library's, it is a search bound, not an exact limit on
+    -- the chosen reading (running/Performance.DepthIsASearchBound).
+    cli_max_depth: Integer = running/config.default_max_depth
+    -- `txtql check QUERY SAMPLE` runs the ambiguity analysis with an effectively unlimited
+    -- budget.
+    check_ambiguity_steps: Integer = 9_223_372_036_854_775_807
+    exit_success: Integer = 0
+    exit_failure: Integer = 1
+    exit_ambiguity_found: Integer = 2
+}
+
+------------------------------------------------------------
+-- Rules
+------------------------------------------------------------
+
+-- `txtql QUERY_FILE [INPUT]`, `txtql -e QUERY [INPUT]` or `txtql run ...`: print the JSON
+-- result. At most one query and one input may be given; no query is an error ("no query
+-- given", with usage), and an extra argument is an error.
+rule RunCommand {
+    when: RunCommand(user, query_source, input_path, flags)
+    ensures: Invocation.created(
+        command: run_command,
+        query_source: query_source,
+        input_path: input_path,
+        flags: flags,
+        status: compiling
+    )
+}
+
+-- `txtql check QUERY_FILE [SAMPLE]` / `txtql check -e QUERY [SAMPLE]`: report errors and lints;
+-- with a sample, also list output-changing ambiguities and repeated keys. Without a sample,
+-- standard input is not read. `check` takes no --strict flag (nor any other run flag): it
+-- always runs non-strict, so only a STRICT rule's ambiguity is an error there.
+rule CheckCommand {
+    when: CheckCommand(user, query_source, sample_path)
+    ensures: Invocation.created(
+        command: check_command,
+        query_source: query_source,
+        input_path: sample_path,
+        flags: default_run_flags(),
+        status: compiling
+    )
+}
+
+-- The query file must be readable (txtql::io). Lints are printed and do not fail.
+rule CompileForInvocation {
+    when: invocation: Invocation.status becomes compiling
+    ensures:
+        if query_text(invocation.query_source) = null:
+            invocation.status = finished
+            invocation.exit_code = config.exit_failure
+            CommandReported(invocation: invocation, code: `txtql::io`)
+        else:
+            invocation.compilation = comp/Compilation.created(source: query_text(invocation.query_source), status: submitted)
+}
+
+-- Once the query is parsed and checked (or rejected): a query with a syntax error or a
+-- static error ends the invocation with exit code 1 after printing its diagnostics; `check`
+-- without a sample prints "query OK (N rules)" and exits 0; otherwise the input is read.
+rule InvocationQuerySettled {
+    when: invocation: Invocation.query_settled
+    requires: invocation.status = compiling
+    ensures:
+        if not invocation.compilation.accepted:
+            invocation.status = finished
+            invocation.exit_code = config.exit_failure
+        else if invocation.command = check_command and invocation.input_path = null:
+            invocation.status = finished
+            invocation.exit_code = config.exit_success
+        else:
+            invocation.status = reading_input
+}
+
+-- The input must be readable (txtql::io) and valid UTF-8; otherwise the error names the
+-- offset of the first invalid byte and suggests converting the file (txtql::io::utf8).
+rule ReadInput {
+    when: invocation: Invocation.status becomes reading_input
+    let input = read_input(invocation.input_path)
+    ensures:
+        if input = null:
+            invocation.status = finished
+            invocation.exit_code = config.exit_failure
+            CommandReported(invocation: invocation, code: input_problem(invocation.input_path))
+        else:
+            invocation.status = running
+            invocation.run = running/Run.created(
+                compilation: invocation.compilation,
+                input: input,
+                options: options_for(invocation),
+                status: recognising,
+                ambiguity_check_complete: false
+            )
+
+    @guidance
+        -- options_for(invocation): for `run`, the flags (strict, max_steps, max_depth,
+        -- check_ambiguity = not no_ambiguity_check) with the default ambiguity budget; for
+        -- `check`, not strict, max_depth = config.cli_max_depth and ambiguity_steps =
+        -- config.check_ambiguity_steps.
+}
+
+-- `run` success: warnings (ambiguities, repeated keys) and, if the ambiguity check stopped
+-- early, a note go to standard error; the JSON goes to standard output, pretty-printed unless
+-- --compact. A closed output pipe is not an error.
+-- `check` success: exit 0 when neither an output-changing ambiguity nor a repeated key was
+-- found ("query OK; no output-changing ambiguity on this input"), otherwise 2 with a summary
+-- counting the ambiguities and the repeated keys found (e.g. "N output-changing ambiguities
+-- found"). A repeated key from ZIP counts like any other. The ambiguities are reported with
+-- the run's caps: at most running/config.max_reported_ambiguities (20) per run and at most one
+-- per match, so `check` lists up to 20 of them, not necessarily every one. A STRICT rule's
+-- ambiguity fails the run instead (InvocationRunFailed, exit 1).
+rule InvocationRunSucceeded {
+    when: run: running/Run.status becomes succeeded
+    let invocation = Invocation{run: run}
+    requires: exists invocation
+    requires: invocation.status = running
+    ensures: invocation.status = finished
+    ensures:
+        if invocation.command = run_command:
+            invocation.exit_code = config.exit_success
+            OutputPrinted(invocation: invocation, value: run.output, compact: invocation.flags.compact)
+        else if run.ambiguities.count = 0 and run.repeated_keys.count = 0:
+            invocation.exit_code = config.exit_success
+        else:
+            invocation.exit_code = config.exit_ambiguity_found
+}
+
+-- Any failed run (no match, limits, evaluation errors, strict ambiguities or repeated keys)
+-- prints its diagnostics and exits 1 without output.
+rule InvocationRunFailed {
+    when: run: running/Run.status becomes failed
+    let invocation = Invocation{run: run}
+    requires: exists invocation
+    requires: invocation.status = running
+    ensures: invocation.status = finished
+    ensures: invocation.exit_code = config.exit_failure
+}
+
+------------------------------------------------------------
+-- Invariants
+------------------------------------------------------------
+
+-- `check` with a sample exits 2 exactly when the run succeeded with an ambiguity or a
+-- repeated key to report.
+invariant CheckExitCodeReflectsWarnings {
+    for i in Invocations:
+        (i.command = check_command and i.status = finished and i.run != null and i.run.status = succeeded)
+            implies (
+                (i.exit_code = config.exit_ambiguity_found)
+                = (i.run.ambiguities.count > 0 or i.run.repeated_keys.count > 0)
+            )
+}
+
+------------------------------------------------------------
+-- Actor Declarations
+------------------------------------------------------------
+
+actor CommandLineUser {
+    identified_by: comp/Client where uses_terminal(this)
+}
+
+------------------------------------------------------------
+-- Surfaces
+------------------------------------------------------------
+
+surface CommandLine {
+    facing user: CommandLineUser
+
+    context invocation: Invocation
+
+    exposes:
+        invocation.exit_code
+
+    provides:
+        RunCommand(user, query_source, input_path, flags)
+        CheckCommand(user, query_source, sample_path)
+
+    contracts:
+        fulfils diag/DiagnosticPresentation
+
+    @guarantee OnlyJsonOnStandardOutput
+        -- Standard output carries only the JSON result; all diagnostics, warnings and notes
+        -- go to standard error.
+
+    @guarantee LanguageServerSubcommand
+        -- `txtql lsp` serves the language server (editor.allium) over standard input and
+        -- output until the editor shuts it down; a transport failure is reported as
+        -- txtql::lsp with exit code 1.
+
+    @guarantee TerminalInputPrompt
+        -- When the input is read from an interactive terminal, txtql first says so and how to
+        -- end the input.
+}

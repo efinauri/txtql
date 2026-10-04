@@ -1,0 +1,4 @@
+-- Advent of Code 2025, day 3: Lobby (https://adventofcode.com/2025/day/3)
+-- Each bank is one run of digits; DIGIT splits it into single batteries.
+TEXT = 1 TO n bank
+bank = 1 TO n digits:DIGIT NL AS [ NUM(d) FOR d IN digits ]

@@ -1,0 +1,13 @@
+---
+source: tests/parser.rs
+expression: "parse_err(\"TEXT = x:WORD AS { 'a': x\")"
+---
+txtql::parse::unexpected_end
+
+  × expected `:`, `,` or `}`, but the query ends here
+   ╭─[query:1:25]
+ 1 │ TEXT = x:WORD AS { 'a': x
+   ·                         ┬
+   ·                         ╰── expected `:`, `,` or `}` after this
+   ╰────
+  help: object entries are written `key: value`, or `name` alone to merge an object

@@ -1,0 +1,6 @@
+Invoice #1042
+Date: 2024-03-15
+Items:
+- Widget x 3 @ 4.50
+- Gadget x 1 @ 12.00
+Total: 25.50

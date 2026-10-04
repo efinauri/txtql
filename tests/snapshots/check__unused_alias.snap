@@ -1,0 +1,15 @@
+---
+source: tests/check.rs
+assertion_line: 279
+expression: "warnings(\"ALIAS sp = ' '\\nTEXT = WORD\")"
+---
+txtql::lint::unused_alias
+
+  ⚠ alias `sp` is never used
+   ╭─[query:1:7]
+ 1 │ ALIAS sp = ' '
+   ·       ─┬
+   ·        ╰── unused
+ 2 │ TEXT = WORD
+   ╰────
+  help: use it in a rule, or remove it

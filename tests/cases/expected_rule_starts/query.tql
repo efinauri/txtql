@@ -1,0 +1,20 @@
+-- A query for the click events only: a crash's stack trace is neither an entry nor the footer,
+-- and the error says which rule each expected text would have started.
+TEXT = session:header 0 TO n events:entry summary:footer
+
+header = '=== playtest ' date:(ANY UNTIL ' ') 'build ' build:(ANY UNTIL ' ') '(' platform:(ANY UNTIL ')') ' tester=' tester:WORD ' ===' NL
+footer = '=== end: ' frames:INT ' frames, avg fps ' fps:FLOAT ' ===' NL
+    AS { 'frames': NUM(frames), 'avg_fps': NUM(fps) }
+
+entry  = '[' time:(ANY UNTIL ']') ' ' level:WORD pad system:WORD ': '
+         (click:click OR ignored) NL
+    AS { 'time': time, 'level': LOWER(level), 'system': system, click }
+
+click  = 'click at (' x:signed ', ' y:signed ') button=' button:WORD
+    AS { 'type': 'click', 'at': [ NUM(x), NUM(y) ], 'button': button }
+
+ignored = rest
+
+ALIAS pad    = 1 TO n ' '
+ALIAS rest   = ANY UNTILBEFORE NL
+ALIAS signed = 0 TO 1 '-' FLOAT

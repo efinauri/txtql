@@ -1,0 +1,150 @@
+%YAML 1.2
+---
+# Syntax highlighting for txtql queries. The language server (`txtql lsp`, through the LSP
+# package) adds diagnostics, navigation and highlighting that knows rules from aliases and
+# captures; this file gives the colours that do not need it.
+name: txtql
+file_extensions: [tql]
+scope: source.txtql
+version: 2
+
+variables:
+  ident: '[[:alpha:]_][[:alnum:]_]*'
+  # A definition starts a line: `name =`, `ALIAS name =` or `STRICT name =`.
+  definition: '^(?=(?:(?:ALIAS|STRICT)[ \t]+)?{{ident}}[ \t]*=(?!=))'
+  # Keywords and functions are case-insensitive.
+  primitives: '(?i:\b(?:WORD|INT|FLOAT|HEX|BIN|IPV4|IPV6|LETTER|DIGIT|PUNCT|ANY|LINE|NL|TAB|ROW|COL|EOF)\b)'
+  functions: '(?i:\b(?:NUM|LOWER|UPPER|TRIM|COUNT|FIRST|LAST|JOIN|ZIP)\b)'
+
+contexts:
+  prototype:
+    - include: comments
+
+  main:
+    - include: definition
+    - include: pattern
+
+  comments:
+    - match: '--'
+      scope: punctuation.definition.comment.txtql
+      push:
+        - meta_include_prototype: false
+        - meta_scope: comment.line.double-dash.txtql
+        - match: $\n?
+          pop: 1
+
+  definition:
+    - match: '(?i)^(ALIAS)[ \t]+({{ident}})'
+      captures:
+        1: keyword.declaration.alias.txtql
+        2: entity.name.macro.txtql
+    - match: '(?i)^(STRICT)[ \t]+({{ident}})'
+      captures:
+        1: storage.modifier.txtql
+        2: entity.name.function.txtql
+    - match: '^{{ident}}(?=[ \t]*=(?!=))'
+      scope: entity.name.function.txtql
+
+  strings:
+    - match: "(i?)(')"
+      captures:
+        1: storage.modifier.case-insensitive.txtql
+        2: punctuation.definition.string.begin.txtql
+      push: single-quoted
+    - match: '(i?)(")'
+      captures:
+        1: storage.modifier.case-insensitive.txtql
+        2: punctuation.definition.string.begin.txtql
+      push: double-quoted
+
+  single-quoted:
+    - meta_include_prototype: false
+    - meta_scope: string.quoted.single.txtql
+    - match: '\\[ntr\\''"]'
+      scope: constant.character.escape.txtql
+    - match: '\\.'
+      scope: invalid.illegal.escape.txtql
+    - match: "'"
+      scope: punctuation.definition.string.end.txtql
+      pop: 1
+
+  double-quoted:
+    - meta_include_prototype: false
+    - meta_scope: string.quoted.double.txtql
+    - match: '\\[ntr\\''"]'
+      scope: constant.character.escape.txtql
+    - match: '\\.'
+      scope: invalid.illegal.escape.txtql
+    - match: '"'
+      scope: punctuation.definition.string.end.txtql
+      pop: 1
+
+  numbers:
+    - match: '\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b'
+      scope: constant.numeric.txtql
+
+  # Patterns: the part of a definition before WHERE and AS.
+  pattern:
+    - include: strings
+    - include: numbers
+    - match: '(?i)\b(TO)[ \t]+(n)\b'
+      captures:
+        1: keyword.operator.repetition.txtql
+        2: keyword.operator.repetition.txtql
+    - match: '(?i)\b(?:TO|LAZY)\b'
+      scope: keyword.operator.repetition.txtql
+    - match: '(?i)\b(?:SPLITBY|SKIPPING|UNTILBEFORE|UNTIL)\b'
+      scope: keyword.operator.clause.txtql
+    - match: '(?i)\bOR\b'
+      scope: keyword.operator.logical.txtql
+    - match: '{{primitives}}'
+      scope: storage.type.primitive.txtql
+    - match: '(?i)\bWHERE\b'
+      scope: keyword.control.where.txtql
+      push: condition
+    - match: '(?i)\bAS\b'
+      scope: keyword.control.as.txtql
+      push: template
+    - match: '({{ident}})(:)'
+      captures:
+        1: variable.parameter.label.txtql
+        2: punctuation.separator.label.txtql
+    - match: '{{ident}}'
+      scope: variable.function.reference.txtql
+
+  # WHERE conditions, up to AS or the next definition.
+  condition:
+    - match: '{{definition}}'
+      pop: 1
+    - match: '(?i)\bAS\b'
+      scope: keyword.control.as.txtql
+      set: template
+    # Keywords before `expression`, whose names would take them otherwise.
+    - match: '(?i)\b(?:AND|OR|NOT)\b'
+      scope: keyword.operator.logical.txtql
+    - match: '(?i)\b(?:CONTAINS|STARTSWITH|ENDSWITH)\b|!=|<=|>=|=|<|>'
+      scope: keyword.operator.comparison.txtql
+    - include: expression
+
+  # AS templates, up to the next definition.
+  template:
+    - match: '{{definition}}'
+      pop: 1
+    - match: '(?i)\b(?:FOR|IN|LISTOF)\b'
+      scope: keyword.control.loop.txtql
+    - match: '(?i)\b(?:true|false|null)\b'
+      scope: constant.language.txtql
+    - include: expression
+
+  # Values in conditions and templates.
+  expression:
+    - include: strings
+    - include: numbers
+    - match: '{{functions}}(?=[ \t]*\()'
+      scope: support.function.builtin.txtql
+    - match: '(\.)({{ident}})'
+      captures:
+        1: punctuation.accessor.txtql
+        2: variable.other.member.txtql
+    - match: '{{ident}}'
+      scope: variable.other.capture.txtql

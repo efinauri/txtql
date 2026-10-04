@@ -1,0 +1,8 @@
+# generated file
+name = txtql
+version = 0.1
+[server]
+port = 8080
+host = localhost
+[database]
+url = postgres://localhost/db

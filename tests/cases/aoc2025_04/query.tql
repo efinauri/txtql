@@ -1,0 +1,3 @@
+-- Advent of Code 2025, day 4: Printing Department (https://adventofcode.com/2025/day/4)
+TEXT = 1 TO n gridrow
+gridrow  = 1 TO n cells:('.' OR '@') NL AS cells

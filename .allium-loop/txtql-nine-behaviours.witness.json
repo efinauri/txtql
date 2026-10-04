@@ -1,0 +1,47 @@
+{
+  "phase": "witness",
+  "goal_slug": "txtql-nine-behaviours",
+  "ticks_witnessed": "unknown (no loop ledger on disk)",
+  "witnessed_at": "2026-10-04",
+  "verdict": "PASS",
+  "checks": [
+    { "name": "spec-check-analyse", "result": "pass", "ground_truth": "allium check exit 0, allium analyse exit 0 over 6 spec files; 0 errors, 0 warnings, 0 findings; 14 info (allium.field.unused, e.g. Template.span, Condition.span)" },
+    { "name": "tests-pass", "result": "pass", "ground_truth": "cargo test --no-fail-fast exit 0; lib 43, main 0, check 52, cli 19, compile 18, disambiguate 26, earley 30, editors 2, eval 60, golden 1, lsp 6, parser 46, properties 10 (+1 ignored: generator_stats, manual stats), stress 20 (+2 ignored: ten_megabytes_of_log_lines, ten_megabytes_of_rhymes, release-only), doctests 1; 334 passed, 0 failed, 3 ignored" },
+    { "name": "no-test-weakened", "result": "pass (best-effort, no baseline)", "ground_truth": "no git commits and no propagate hash ledger, so no hash diff possible; manual read of declared edits: deep_nesting_through_the_cli only adds --max-depth 100000 (needed because default is now 10000); src/eval.rs JOIN unit tests now assert error without separator and pass separators elsewhere; check__arity.snap now reads 'JOIN takes 2 argument(s), got 3'; multiline_entries query uses JOIN([date, time], ' '). grep found no commented-out asserts, assert!(true), or new #[ignore]; the 3 ignored tests carry documented reasons. Sha256 of witnessed files recorded below for future comparison" },
+    { "name": "coverage-reconciliation", "result": "inconclusive", "ground_truth": "no propagate reconciliation line (no .allium-loop ledger existed before this record)" },
+    { "name": "weed-verdict", "result": "inconclusive", "ground_truth": "no recorded weed verdict on disk; hard mode not requested" },
+    { "name": "no-blocking-question-parked", "result": "pass", "ground_truth": "grep -i 'open question|question|TODO|FIXME|TBD|deferred|parked|unresolved' over txtql.allium and spec/*.allium: 0 hits; no open questions section exists" },
+    { "name": "convergence-holds", "result": "pass (partial)", "ground_truth": "tests pass (runner exit 0), no open questions; weed cleanliness not independently evidenced; spec text matches spot-checked behaviour (language.allium:273 JOIN sep required, :330 reserved_name, running.allium:261/363 repeated_key warning/strict error, txtql.allium:212/240 check exit 2 on repeated keys, running.allium:278 default_max_depth 10_000)" },
+    { "name": "red-before-green", "result": "inconclusive", "ground_truth": "no ledger red observations; reconstructive check impossible" },
+    { "name": "cli-spot-checks", "result": "pass", "ground_truth": "target/release/txtql rebuilt. JOIN(x) -> txtql::check::arity, help 'JOIN(x, ' ')', exit 1. null as rule / ALIAS / label / FOR variable -> txtql::check::reserved_name, exit 1 each. ZIP(['a','b','a'],[1,2,3]) -> {\"a\":3,\"b\":2} plus repeated_key warning, exit 0; --strict -> repeated_key error, exit 1. check on repeated_key_warning case -> '1 repeated key found', exit 2; check on ZIP dup via stdin -> exit 2; clean check -> exit 0. --help and run --help show '--max-depth [default: 10000]'" }
+  ],
+  "violations": [],
+  "caveats": [
+    "Unrequested implementation change: src/extract.rs best_inner now counts only rule matches toward max_depth (groups/repetitions no longer count). Spec running.allium (max_depth 'nested rule matches', DepthIsASearchBound) describes this, so spec/code agree, but the user did not request it and should confirm it.",
+    "tests/.parser.rs.pending-snap (81 KB, insta leftovers) is stale cruft; latest runs record no new snapshots, but it should be deleted or gitignored.",
+    "No git baseline and no loop ledger: test-weakening check is a manual read, not a hash diff. tests/editors.rs and tests/properties.rs share the loop-window mtime but were not declared as edited; nothing suspicious found in them.",
+    "check subcommand --help does not expose --max-depth (it uses config.cli_max_depth as spec'd).",
+    "Stress tests ten_megabytes_* are ignored in debug and were not run in release by this witness."
+  ],
+  "skipped": [
+    "coverage-reconciliation, weed-verdict, red-before-green: no ledger evidence"
+  ],
+  "file_hashes_sha256": {
+    "tests/cli.rs": "b70635500857f3b98344ecaf1e0c1720c45bbd7d0da830b52c3ffa18abe95889",
+    "tests/check.rs": "b5b6767d4626608cc2def977a27e7449518fdc4c4b88c125c81285c9241a8b3a",
+    "tests/eval.rs": "d73e93e57c25276fd33f597ed1c164cc15690d33bbd1925e692e7007b9506a64",
+    "tests/disambiguate.rs": "b7fc0da320f02c6c59ee25d8c27a4cae8379baf3e426a72328e0172fe3697bee",
+    "tests/cases/multiline_entries/query.tql": "03a4a9d5f55f3e66581b3ea887d6a9fcc5d0ac8646c168c388b3e42729946995",
+    "tests/snapshots/check__arity.snap": "2744b045e5e5efbdac7f7601ee758899edee867820c8c87e1fc6b173bc73ce3d",
+    "src/eval.rs": "8c027681995a2203798d5d6cf055d520fb9c1f662b499b5a3e9c78513ddbe024",
+    "src/extract.rs": "bd025989e147111365bc545c793d9e9dcbcaa2f4b01f1615f4def67c2ef97e23",
+    "txtql.allium": "22ab5bc018b3fecc28458aaa9782ba51dbc1eb564acb04739802c6ed1d204599",
+    "spec/compilation.allium": "16a2810e9f41b5ba25c293981f75ecd646d61402d1a69144d4edaf14ad08beef",
+    "spec/diagnostics.allium": "6474b4f8b5a8adf1a3a3be3eb1debbf44923124223aa787266a6628cb4438833",
+    "spec/editor.allium": "700a53452210140e81683810b518e6c34abe02dada040d5710f624fd9908fa82",
+    "spec/language.allium": "22de1101a03133ecf70f82561eb5a49a8990551b80ad88d89db8dc9bb4d5f96f",
+    "spec/running.allium": "0cfb67482c1d59f3ad75f097b79fbf280a1fec6247d9efbad68cae903484986c"
+  },
+  "record_path": ".allium-loop/txtql-nine-behaviours.witness.json",
+  "summary": "witness: PASS (6 pass, 3 inconclusive for lack of a ledger) - tests 334/334 passed + 3 ignored (runner exit 0), allium check/analyse clean, no open questions, CLI spot-checks match the spec; caveats: unrequested max_depth rule-only counting, stale .parser.rs.pending-snap"
+}

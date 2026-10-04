@@ -1,0 +1,13 @@
+---
+source: tests/parser.rs
+assertion_line: 163
+expression: "parse_err(\"TEXT = a OR\")"
+---
+txtql::parse::unexpected_end
+
+  × expected a pattern, but the query ends here
+   ╭─[query:1:10]
+ 1 │ TEXT = a OR
+   ·          ─┬
+   ·           ╰── expected a pattern after this
+   ╰────

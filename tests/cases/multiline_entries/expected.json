@@ -1,0 +1,12 @@
+[
+  {
+    "at": "2026-10-04 08:00:01",
+    "level": "ERROR",
+    "message": "request failed\nTraceback (most recent call last):\n  File \"app.py\", line 3\nValueError: bad"
+  },
+  {
+    "at": "2026-10-04 08:00:02",
+    "level": "INFO",
+    "message": "recovered"
+  }
+]

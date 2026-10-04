@@ -1,0 +1,9 @@
+---
+source: tests/compile.rs
+assertion_line: 18
+expression: "dump(\"TEXT = i'Are'\")"
+---
+nt0 rule `TEXT` (Rule(0)) start=s0
+  s0
+    -> s1 i'Are'
+  s1 accept

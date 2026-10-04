@@ -1,0 +1,12 @@
+---
+source: tests/compile.rs
+expression: "dump(\"TEXT = 0 TO 1 WORD\")"
+---
+nt0 rule `TEXT` (Rule(0)) start=s0
+  s0
+    -> s3 nt1
+  s3 accept
+nt1 repetition (Rep { lazy: false, single: true }) start=s1
+  s1 accept
+    -> s2 WORD [Item]
+  s2 accept

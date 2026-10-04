@@ -1,0 +1,6 @@
+-- Advent of Code 2025, day 6: Trash Compactor (https://adventofcode.com/2025/day/6)
+-- Columns are aligned with spaces, so lines can start and end with spaces.
+TEXT = 1 TO n rows:gridrow ops
+gridrow  = 0 TO 1 sp 1 TO n nums:INT SPLITBY sp 0 TO 1 sp NL AS [ NUM(x) FOR x IN nums ]
+ops  = 1 TO n syms:('*' OR '+') SPLITBY sp 0 TO 1 sp NL AS syms
+ALIAS sp = 1 TO n ' '

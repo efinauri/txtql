@@ -1,0 +1,135 @@
+-- allium: 3
+-- diagnostics.allium
+--
+-- How txtql reports problems. Every problem, from a syntax error to an ambiguous match, is a
+-- miette-quality diagnostic: a stable code, a message, labelled snippets of the query and/or
+-- the input, and a hint where one helps.
+--
+-- Scope: the catalogue of diagnostic codes, severities and the presentation contract.
+-- Excludes: when each diagnostic is raised (compilation.allium, running.allium,
+--           txtql.allium), rendering technology (terminal colours, widths).
+-- Distilled from src/error.rs, src/lib.rs (rendering), src/main.rs and the rendered
+-- golden files under tests/cases and tests/snapshots.
+
+use "./language.allium" as lang
+
+------------------------------------------------------------
+-- Value Types
+------------------------------------------------------------
+
+-- A labelled place in the query or in the input.
+value SourceLabel {
+    source: SourceKind
+    span: lang/Span
+    text: String
+}
+
+-- What the user sees for one problem.
+value DiagnosticReport {
+    code: DiagnosticCode
+    severity: Severity
+    message: String
+    labels: List<SourceLabel>
+    help: String?
+}
+
+------------------------------------------------------------
+-- Contracts
+------------------------------------------------------------
+
+contract DiagnosticPresentation {
+    present: (report: DiagnosticReport) -> String
+
+    @invariant StableCodes
+        -- Every diagnostic carries one code from DiagnosticCode. Codes are stable so that
+        -- users, tests and editors can rely on them.
+
+    @invariant SourceSnippets
+        -- Each label points at a span of the query or the input and is shown as a snippet
+        -- with its label text. Labels never point at an empty span at the very end of a
+        -- text: they point at the last character (or the last token) instead.
+
+    @invariant HelpWherePossible
+        -- Where txtql can say how to fix the problem, the diagnostic carries a hint: "did you
+        -- mean" suggestions for misspelled names (closest name within an edit distance of
+        -- about a third of the name's length, ignoring case), the txtql spelling of regex
+        -- habits (`|` suggests `OR`; `*`, `+`, `?` suggest `a TO b pattern`), and the
+        -- concrete rewrite for common mistakes.
+
+    @invariant WarningsDoNotFail
+        -- Lints, ambiguities and repeated keys are warnings: they are shown, but the query
+        -- still compiles and the run still produces output. Strictness turns ambiguities and
+        -- repeated keys into errors.
+
+    @invariant EvaluationErrorsShowBothTexts
+        -- Template and WHERE failures point into the query (the template part being
+        -- evaluated) and, as related advice, into the input (the matched text the rule was
+        -- building a value for). Repeated-key reports do the same.
+
+    @invariant AllCheckProblemsAtOnce
+        -- Static checks collect every problem, errors and warnings, ordered by their first
+        -- position in the query. Syntax errors stop at the first one.
+
+    @invariant WarningsGoToStandardError
+        -- On the command line, every diagnostic goes to standard error; standard output
+        -- carries only the JSON result.
+}
+
+------------------------------------------------------------
+-- Enumerations
+------------------------------------------------------------
+
+enum Severity { error | warning | advice }
+
+enum SourceKind { query_text | input_text }
+
+enum DiagnosticCode {
+    -- Syntax errors in the query.
+    `txtql::parse::unexpected_char`
+    | `txtql::parse::unterminated_string`
+    | `txtql::parse::bad_escape`
+    | `txtql::parse::bad_number`
+    | `txtql::parse::unexpected_token`
+    | `txtql::parse::unexpected_end`
+    | `txtql::parse::too_deep`
+    -- Static errors in a query that parses.
+    | `txtql::check::missing_root`
+    | `txtql::check::duplicate_rule`
+    | `txtql::check::reserved_name`
+    | `txtql::check::root_is_alias`
+    | `txtql::check::alias_cycle`
+    | `txtql::check::label_in_alias`
+    | `txtql::check::undefined_rule`
+    | `txtql::check::duplicate_capture`
+    | `txtql::check::unknown_capture`
+    | `txtql::check::unknown_field`
+    | `txtql::check::not_repeated`
+    | `txtql::check::not_mergeable`
+    | `txtql::check::duplicate_branch`
+    | `txtql::check::empty_loop`
+    | `txtql::check::empty_cycle`
+    | `txtql::check::bad_bounds`
+    | `txtql::check::bound_too_large`
+    | `txtql::check::bad_stop`
+    | `txtql::check::empty_stop`
+    | `txtql::check::empty_literal`
+    | `txtql::check::unknown_function`
+    | `txtql::check::arity`
+    -- Lints (warnings).
+    | `txtql::lint::unused_alias`
+    | `txtql::lint::unused_rule`
+    | `txtql::lint::nested_repetition`
+    | `txtql::lint::right_recursion`
+    -- Problems while matching the input.
+    | `txtql::input::no_parse`
+    | `txtql::input::too_expensive`
+    | `txtql::input::too_deep`
+    | `txtql::input::ambiguous`
+    -- Problems while building the output.
+    | `txtql::eval::error`
+    | `txtql::eval::repeated_key`
+    -- Problems of the command-line tool itself.
+    | `txtql::io`
+    | `txtql::io::utf8`
+    | `txtql::lsp`
+}

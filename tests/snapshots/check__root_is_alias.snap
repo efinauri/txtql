@@ -1,0 +1,14 @@
+---
+source: tests/check.rs
+assertion_line: 274
+expression: "compile_err(\"ALIAS TEXT = WORD\")"
+---
+txtql::check::root_is_alias
+
+  × `TEXT` must be a rule, not an alias
+   ╭─[query:1:7]
+ 1 │ ALIAS TEXT = WORD
+   ·       ──┬─
+   ·         ╰── defined as an alias
+   ╰────
+  help: write `TEXT = pattern` without `ALIAS`

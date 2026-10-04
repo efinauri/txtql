@@ -1,0 +1,13 @@
+---
+source: tests/parser.rs
+expression: "parse_err(\"TEXT = line:LINE\")"
+---
+txtql::parse::unexpected_token
+
+  × expected a label, found keyword `line`
+   ╭─[query:1:8]
+ 1 │ TEXT = line:LINE
+   ·        ──┬─
+   ·          ╰── unexpected keyword `line`
+   ╰────
+  help: `line` is a keyword (in any spelling), so it cannot be a label; choose another one

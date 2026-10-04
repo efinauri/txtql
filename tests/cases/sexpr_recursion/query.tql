@@ -1,0 +1,4 @@
+TEXT  = sexpr NL AS sexpr
+sexpr = '(' 0 TO n items:(atom OR sexpr) SPLITBY space ')' AS items
+atom  = WORD OR FLOAT OR '*' OR '+'
+space = 1 TO n (' ' OR NL)

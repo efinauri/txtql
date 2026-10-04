@@ -1,0 +1,16 @@
+---
+source: tests/compile.rs
+expression: "dump(\"TEXT = (ANY UNTILBEFORE (' ' OR '\\\"' OR NL))\")"
+---
+nt0 rule `TEXT` (Rule(0)) start=s0
+  s0
+    -> s4 nt1
+  s4 accept
+nt1 repetition (Rep { lazy: false, single: false }) start=s1
+  s1
+    -> s3 anything but ' ' or '"' or a line break [Item]
+    -> s2 at ' ' or '"' or a line break
+  s2 accept
+  s3
+    -> s3 anything but ' ' or '"' or a line break [Item]
+    -> s2 at ' ' or '"' or a line break

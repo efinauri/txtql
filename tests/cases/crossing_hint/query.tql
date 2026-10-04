@@ -1,0 +1,4 @@
+-- The stop has no line break, so a file path can swallow the next block; the warning says so.
+TEXT  = 1 TO n block SPLITBY NL
+block = 1 TO n files:file 'total ' INT NL AS files
+file  = path:(ANY UNTILBEFORE ' |') ' | ' INT NL AS path

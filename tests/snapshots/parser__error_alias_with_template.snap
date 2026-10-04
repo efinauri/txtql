@@ -1,0 +1,13 @@
+---
+source: tests/parser.rs
+expression: "parse_err(\"ALIAS eol = NL AS 'x'\")"
+---
+txtql::parse::unexpected_token
+
+  × expected the next rule or end of query, found keyword `AS`
+   ╭─[query:1:16]
+ 1 │ ALIAS eol = NL AS 'x'
+   ·                ─┬
+   ·                 ╰── unexpected keyword `AS`
+   ╰────
+  help: an alias is only a pattern; use a rule for `WHERE` and `AS`

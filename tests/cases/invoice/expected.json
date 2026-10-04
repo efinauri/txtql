@@ -1,0 +1,17 @@
+{
+  "id": 1042,
+  "date": "2024-03-15",
+  "items": [
+    {
+      "name": "Widget",
+      "qty": 3,
+      "price": 4.5
+    },
+    {
+      "name": "Gadget",
+      "qty": 1,
+      "price": 12.0
+    }
+  ],
+  "total": 25.5
+}

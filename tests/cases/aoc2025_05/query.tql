@@ -1,0 +1,5 @@
+-- Advent of Code 2025, day 5: Cafeteria (https://adventofcode.com/2025/day/5)
+-- Two sections separated by a blank line.
+TEXT  = 1 TO n fresh:range NL 1 TO n available:id
+range = lo:INT '-' hi:INT NL AS { 'from': NUM(lo), 'to': NUM(hi) }
+id    = n:INT NL AS NUM(n)

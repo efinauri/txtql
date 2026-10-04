@@ -1,0 +1,3 @@
+dnet018.sat.texas.net - - [01/Jul/1995:00:22:42 -0400] "GET /history/apollo/apollo-13/ HTTP/1.0" 200 1732
+pipe6.nyc.pipeline.com - - [01/Jul/1995:00:22:43 -0400] "GET /shuttle/missions/sts-71/movies/sts-71-mir-dock.mpg" 200 946425
+ix-sd9-18.ix.netcom.com - - [01/Jul/1995:00:22:43 -0400] "GET /shuttle/missions/sts-71/mission-sts-71.html HTTP/1.0" 200 12040

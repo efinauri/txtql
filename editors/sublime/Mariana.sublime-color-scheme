@@ -1,0 +1,11 @@
+// Added to the built-in colour scheme of the same name: semantic highlighting from language
+// servers only shows when the scheme has this rule (a background marginally different from
+// the scheme's own).
+{
+	"rules": [
+		{
+			"scope": "meta.semantic-token",
+			"background": "#00000101",
+		},
+	],
+}

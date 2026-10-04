@@ -1,0 +1,16 @@
+txtql::input::ambiguous
+
+  ⚠ ambiguous match in rule `entry`: the text can be read in two ways with different results
+   ╭─[input.txt:2:6]
+ 1 │ ada: London
+ 2 │ bob: -
+   ·      ┬┬
+   ·      │╰── alternative: `place` = "-"
+   ·      ╰── chosen: `unknown` = "-"
+ 3 │ cy: Paris
+   ╰────
+  help: txtql picked the first reading, which gives {"bob":null}; the other gives {"bob":"-"}.
+        `unknown` was chosen because it comes first in the `OR`.
+        - If `place` is the special case, list it first.
+        - If this order is intended, exclude the special case from `place` with WHERE, e.g. `WHERE
+        t != '-'`.

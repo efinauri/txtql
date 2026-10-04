@@ -1,0 +1,4 @@
+-- Advent of Code 2025, day 2: Gift Shop (https://adventofcode.com/2025/day/2)
+-- The list wraps onto new lines after a comma.
+TEXT  = 1 TO n ranges:range SPLITBY (',' 0 TO 1 NL) NL AS ranges
+range = lo:INT '-' hi:INT AS { 'from': NUM(lo), 'to': NUM(hi) }

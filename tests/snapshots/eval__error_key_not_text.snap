@@ -1,0 +1,21 @@
+---
+source: tests/eval.rs
+expression: "run_err(\"TEXT = 'x ' 1 TO n ws:WORD SPLITBY ' ' AS { ws: 1 }\", \"x a b\")"
+---
+txtql::eval::error
+
+  × object keys must be text, but this is a list
+   ╭─[query:1:45]
+ 1 │ TEXT = 'x ' 1 TO n ws:WORD SPLITBY ' ' AS { ws: 1 }
+   ·                                             ─┬
+   ·                                              ╰── while evaluating this
+   ╰────
+  help: use a capture that matches a single piece of text, or JOIN(...) a list
+
+Advice: 
+  ☞ in this part of the input
+   ╭─[input:1:1]
+ 1 │ x a b
+   · ──┬──
+   ·   ╰── matched text
+   ╰────

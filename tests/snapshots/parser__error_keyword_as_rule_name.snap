@@ -1,0 +1,13 @@
+---
+source: tests/parser.rs
+expression: "parse_err(\"WORD = 'x'\")"
+---
+txtql::parse::unexpected_token
+
+  × expected a rule name, found keyword `WORD`
+   ╭─[query:1:1]
+ 1 │ WORD = 'x'
+   · ──┬─
+   ·   ╰── unexpected keyword `WORD`
+   ╰────
+  help: `WORD` is a keyword (in any spelling), so it cannot be a name; choose another one

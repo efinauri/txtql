@@ -1,0 +1,15 @@
+{
+  "status": 200,
+  "headers": {
+    "content-type": [
+      "text/html"
+    ],
+    "set-cookie": [
+      "a=1",
+      "b=2"
+    ],
+    "vary": [
+      "Accept"
+    ]
+  }
+}

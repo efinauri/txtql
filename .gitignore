@@ -1,0 +1,5 @@
+/target
+__pycache__/
+.idea/
+# Personal convenience script, not part of the project.
+/install.sh

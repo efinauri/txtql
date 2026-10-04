@@ -1,0 +1,3 @@
+-- Windows line endings: NL matches \r\n as one line break, so `ANY UNTIL NL` consumes both characters.
+TEXT = 1 TO n kv AS { kv }
+kv   = k:WORD ': ' v:(ANY UNTIL NL) AS { k: v }

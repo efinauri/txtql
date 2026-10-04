@@ -1,0 +1,10 @@
+199.72.81.55 - - [01/Jul/1995:00:00:01 -0400] "GET /history/apollo/ HTTP/1.0" 200 6245
+unicomp6.unicomp.net - - [01/Jul/1995:00:00:06 -0400] "GET /shuttle/countdown/ HTTP/1.0" 200 3985
+205.189.154.54 - - [01/Jul/1995:00:01:06 -0400] "GET /cgi-bin/imagemap/countdown?99,176 HTTP/1.0" 302 110
+mizzou-ts3-03.missouri.edu - - [01/Jul/1995:03:04:36 -0400] "GET /htbin/wais.pl?shuttle+and+earth+and+jpg HTTP/1.0" 200 5986
+titan02f - - [18/Jul/1995:15:18:39 -0400] "GET /~downs/cgi-bin/BrokerQuery.pl.cgi?query=oms&host=titan04.ksc.nasa.gov%3A8501&caseflag=on&wordflag=on&errorflag=0&opaqueflag=on&descflag=on&verbose=on&maxresultflag=50 HTTP/1.0" 200 15930
+202.6.90.68 - - [01/Jul/1995:03:44:59 -0400] "GET /Titles?qt=nasa HTTP/1.0" 404 -
+ppp6.cpbx.net - - [01/Jul/1995:00:19:45 -0400] "HEAD /software/winvn/winvn.html HTTP/1.0" 200 0
+204.212.153.234 - - [01/Jul/1995:00:51:19 -0400] "POST /cgi-bin/newwvn-mail.pl HTTP/1.0" 200 703
+pipe6.nyc.pipeline.com - - [01/Jul/1995:00:22:43 -0400] "GET /shuttle/missions/sts-71/movies/sts-71-mir-dock.mpg" 200 946425
+blazemonger.pc.cc.cmu.edu - - [11/Jul/1995:17:55:44 -0400] "GET /htbin/cdt_clock.pl HTTP/1.0From:  <berend@blazemonger.pc.cc.cmu.edu>" 200 751

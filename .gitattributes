@@ -1,0 +1,2 @@
+# Test fixtures must keep their exact bytes (some contain CRLF or lone CR).
+tests/cases/** -text

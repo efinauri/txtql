@@ -1,0 +1,26 @@
+---
+source: tests/compile.rs
+assertion_line: 94
+expression: "dump(\"w = WORD\\nALIAS pair = w ' ' w\\nTEXT = pair NEWLINE x:pair\")"
+---
+nt0 rule `w` (Rule(0)) start=s0
+  s0
+    -> s2 WORD
+  s2 accept
+nt1 rule `TEXT` (Rule(1)) start=s1
+  names: [["x"]]
+  s1
+    -> s8 nt2
+  s7 accept
+  s8
+    -> s9 a line break
+  s9
+    -> s7 nt2 as x
+nt2 alias `pair` (Group) start=s3
+  s3
+    -> s5 nt0
+  s4 accept
+  s5
+    -> s6 ' '
+  s6
+    -> s4 nt0

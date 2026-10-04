@@ -1,0 +1,10 @@
+txtql::input::no_parse
+
+  × the text does not match the query
+   ╭─[input.txt:1:8]
+ 1 │ Title: Hello world
+   ·        ──┬──
+   ·          ╰── expected the start of a line (for `LINE`)
+   ╰────
+  help: LINE matches whole lines only. For the rest of this line, write ANY UNTILBEFORE NL (e.g.
+        ALIAS rest = ANY UNTILBEFORE NL)

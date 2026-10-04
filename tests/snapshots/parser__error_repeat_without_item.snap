@@ -1,0 +1,13 @@
+---
+source: tests/parser.rs
+assertion_line: 178
+expression: "parse_err(\"TEXT = 1 TO n\")"
+---
+txtql::parse::unexpected_end
+
+  × expected the pattern to repeat, but the query ends here
+   ╭─[query:1:13]
+ 1 │ TEXT = 1 TO n
+   ·             ┬
+   ·             ╰── expected the pattern to repeat after this
+   ╰────

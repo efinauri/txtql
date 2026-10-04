@@ -1,0 +1,17 @@
+txtql::eval::error
+
+  × cannot convert "one" to a number
+   ╭─[query.tql:1:56]
+ 1 │ TEXT = 1 TO n (k:WORD ' = ' v:(WORD OR FLOAT) NL) AS [ NUM(v) FOR v ]
+   ·                                                        ───┬──
+   ·                                                           ╰── while evaluating this
+   ╰────
+  help: NUM accepts text such as "42" or "3.5"
+
+Advice: 
+  ☞ in this part of the input
+   ╭─[input.txt:1:1]
+ 1 │ ╭─▶ a = 1
+ 2 │ ├─▶ b = one
+   · ╰──── matched text
+   ╰────

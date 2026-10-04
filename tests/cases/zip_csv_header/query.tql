@@ -1,0 +1,8 @@
+-- A CSV file whose first line names the columns, whatever they are.
+TEXT = header:record 1 TO n rows:record
+    AS [ ZIP(header, r) FOR r IN rows ]
+
+-- One line: its cells, as a list of text.
+record = 1 TO n cells:cell SPLITBY ',' NL AS cells
+
+ALIAS cell = ANY UNTILBEFORE (',' OR NL)

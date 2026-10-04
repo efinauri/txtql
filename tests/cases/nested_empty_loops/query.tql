@@ -1,0 +1,2 @@
+-- Found by fuzzing: the lint on the nested repetition used to hide the empty-loop error.
+TEXT = 0 TO n (0 TO n (0 TO n WORD))

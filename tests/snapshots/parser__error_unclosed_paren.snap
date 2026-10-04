@@ -1,0 +1,13 @@
+---
+source: tests/parser.rs
+assertion_line: 183
+expression: "parse_err(\"TEXT = (a b\")"
+---
+txtql::parse::unexpected_end
+
+  × expected `)`, but the query ends here
+   ╭─[query:1:11]
+ 1 │ TEXT = (a b
+   ·           ┬
+   ·           ╰── expected `)` after this
+   ╰────

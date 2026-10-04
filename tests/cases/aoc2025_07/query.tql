@@ -1,0 +1,3 @@
+-- Advent of Code 2025, day 7: Laboratories (https://adventofcode.com/2025/day/7)
+TEXT = 1 TO n gridrow
+gridrow  = 1 TO n cells:('.' OR '^' OR 'S') NL AS cells

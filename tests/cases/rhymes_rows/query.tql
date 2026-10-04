@@ -1,0 +1,5 @@
+-- The default output: one object per rhyme.
+TEXT   = 1 TO n rhyme
+rhyme  = noun:WORD ' are ' colors NL
+colors = 1 TO n color SPLITBY (' and ' OR ', ')
+color  = WORD

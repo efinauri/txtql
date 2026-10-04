@@ -1,0 +1,16 @@
+---
+source: tests/check.rs
+assertion_line: 45
+expression: "compile_err(\"color = WORD\\nTEXT = color 'and' color\")"
+---
+txtql::check::duplicate_capture
+
+  × capture `color` appears twice in the same match
+   ╭─[query:2:8]
+ 1 │ color = WORD
+ 2 │ TEXT = color 'and' color
+   ·        ──┬──       ──┬──
+   ·          │           ╰── captured again here
+   ·          ╰── first capture
+   ╰────
+  help: give one of them a different name with a label, e.g. `other:color`

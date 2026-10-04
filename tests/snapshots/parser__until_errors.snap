@@ -1,0 +1,12 @@
+---
+source: tests/parser.rs
+expression: "parse_err(\"TEXT = ANY UNTILBEFORE\")"
+---
+txtql::parse::unexpected_end
+
+  × expected a pattern after `UNTILBEFORE`, but the query ends here
+   ╭─[query:1:12]
+ 1 │ TEXT = ANY UNTILBEFORE
+   ·            ─────┬─────
+   ·                 ╰── expected a pattern after `UNTILBEFORE` after this
+   ╰────

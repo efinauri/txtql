@@ -1,0 +1,4 @@
+TEXT   = 1 TO n rhyme                 AS { rhyme }
+rhyme  = noun:WORD ' are ' colors NL AS { noun: colors }
+colors = 1 TO n color SPLITBY (' and ' OR ', ')
+color  = WORD

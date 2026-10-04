@@ -1,0 +1,13 @@
+---
+source: tests/parser.rs
+assertion_line: 218
+expression: "parse_err(\"TEXT = 1 TO 99999999999999999999999 WORD\")"
+---
+txtql::parse::bad_number
+
+  × invalid number
+   ╭─[query:1:13]
+ 1 │ TEXT = 1 TO 99999999999999999999999 WORD
+   ·             ───────────┬───────────
+   ·                        ╰── this number is too large or malformed
+   ╰────

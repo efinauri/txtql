@@ -1,0 +1,5 @@
+-- HTTP response headers: a repeated header (Set-Cookie) keeps every value with LISTOF.
+TEXT   = 'HTTP/' version:(ANY UNTIL ' ') status:INT ' ' reason:(ANY UNTIL NL)
+         1 TO n hs:header NL
+    AS { 'status': NUM(status), 'headers': { LOWER(h.name): LISTOF h.value FOR h IN hs } }
+header = name:(ANY UNTIL ': ') value:(ANY UNTIL NL)

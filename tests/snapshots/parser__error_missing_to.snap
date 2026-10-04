@@ -1,0 +1,14 @@
+---
+source: tests/parser.rs
+assertion_line: 168
+expression: "parse_err(\"TEXT = 1 n WORD\")"
+---
+txtql::parse::unexpected_token
+
+  × expected `TO`, found identifier `n`
+   ╭─[query:1:10]
+ 1 │ TEXT = 1 n WORD
+   ·          ┬
+   ·          ╰── unexpected identifier `n`
+   ╰────
+  help: repetitions are written `min TO max pattern`, e.g. `1 TO n WORD`
