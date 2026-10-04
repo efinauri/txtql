@@ -1,5 +1,7 @@
 # txtql
 
+[![CI](https://github.com/efinauri/txtql/actions/workflows/ci.yml/badge.svg)](https://github.com/efinauri/txtql/actions/workflows/ci.yml)
+
 Extract structured JSON from free text with readable grammar rules instead of regular expressions.
 
 txtql is a small query language, a command-line tool, a Rust library and a language server. You describe
