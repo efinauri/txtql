@@ -1,9 +1,10 @@
 # Documentation tooling
 
-`README.md` and `wiki/*.md` at the repo root are **generated** from the templates in `src/`.
-Edit the templates, never the generated files.
+`wiki/*.md` at the repo root is **generated** from the templates in `src/wiki/`.
+Edit the templates, never the generated files. The root `README.md` is written by hand and is not
+generated or checked.
 
-    tools/docs/gen.py           regenerate README.md and wiki/
+    tools/docs/gen.py           regenerate wiki/
     tools/docs/gen.py --check   fail if a doc is stale or any example behaves differently
     tools/docs/run_all.sh       build, run --check, drive the language server, compile the library snippets
 
