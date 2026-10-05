@@ -1,7 +1,8 @@
 # Language Walkthrough
 
 A step-by-step tour of txtql. Each step adds one idea and shows a query, an input and the exact output.
-For a condensed list of everything, see [[Language Reference|Language-Reference]].
+For a condensed list of everything, with the formal grammar and the precedence rules, see the
+[[Language Reference|Language-Reference]].
 
 ## How to follow along
 
@@ -71,7 +72,7 @@ Rule names are what the result is keyed by here: `greeting` and `name` are captu
 ## 2. Literals and built-in patterns
 
 A **literal** is text in single or double quotes. It matches exactly that text, spaces included.
-`i'text'` ignores case. Escapes `\n`, `\t`, `\r`, `\\`, `\'` and `\"` work inside quotes, and a literal may span lines.
+In a pattern, `i'text'` ignores case (it is not available in templates or conditions). Escapes `\n`, `\t`, `\r`, `\\`, `\'` and `\"` work inside quotes, and a literal may span lines.
 
 {{ex w2_icase}}
 
@@ -351,6 +352,24 @@ A template that fails on the data, such as `NUM('abc')`, is an error that points
 
 {{ex t7_numerr}}
 
+### Negative numbers
+
+Number literals are unsigned: there is no `-5` in a template or a condition (`AS -5`, `AS - 5` and
+`WHERE NUM(n) > -5` are all syntax errors). A negative value comes from the data instead: capture the sign with the
+digits, and `NUM` reads it.
+
+{{ex t7_neg}}
+
+To use the sign on its own, give it a rule that produces `true`. In `0 TO 1 neg:minus`, `neg` is `true` when a sign was
+there and `null` when it was not:
+
+{{ex t7_sign}}
+
+In a condition, test the sign instead of comparing with a negative literal. This keeps only the numbers above 10 that
+are not negative-signed:
+
+{{ex t7_sign_where}}
+
 ## 8. Conditions (WHERE)
 
 `WHERE` goes after the pattern (before `AS`) and decides whether a match counts. A match whose condition is false
@@ -470,7 +489,7 @@ inside `SKIPPING` text and separators:
 ## Where next
 
 - [[Practical Examples|Practical-Examples]]: real-world recipes (CSV, logs, configs, emails, pipelines) built from these ideas.
-- [[Language Reference|Language-Reference]]: everything on one page.
+- [[Language Reference|Language-Reference]]: everything on one page, including the formal grammar.
 - [[Ambiguity and Strict Mode|Ambiguity-and-Strict-Mode]] and [[Errors and Diagnostics|Errors-and-Diagnostics]].
 - The `tests/cases/` directory in the repository holds larger worked queries: invoices, CSV with a header row, HTTP headers,
   a web server log, a game playtest log and all twelve Advent of Code 2025 example inputs.

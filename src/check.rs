@@ -262,8 +262,8 @@ impl<'q> Checker<'q> {
             PatKind::Repeat(r) => {
                 let bound_span = Span::new(p.span.start, p.span.start + 1);
                 if r.min > MAX_BOUND || r.max.is_some_and(|m| m > MAX_BOUND) {
-                    let bound = r.min.max(r.max.unwrap_or(0));
-                    self.errors.push(CheckError::BoundTooLarge { bound: bound.into(), limit: MAX_BOUND, span: p.span });
+                    let bound = self.written_bound(p, r);
+                    self.errors.push(CheckError::BoundTooLarge { bound, limit: MAX_BOUND, span: p.span });
                 } else if let Some(max) = r.max
                     && r.min > max
                 {
@@ -284,7 +284,14 @@ impl<'q> Checker<'q> {
                 self.pattern(&r.item, this);
                 if let Some(u) = &r.until {
                     let keyword = u.kind.keyword();
-                    if let Some(bad) = self.bad_stop(&u.stop, &mut Vec::new()) {
+                    // The pattern checks apply inside a stop too; a stop that already got such a
+                    // diagnostic is not judged again (no bad_stop / empty_stop on top).
+                    let before = self.errors.iter().filter(|e| !e.is_warning()).count();
+                    self.pattern(&u.stop, None);
+                    let judged = self.errors.iter().filter(|e| !e.is_warning()).count() > before;
+                    if judged {
+                        // Already reported.
+                    } else if let Some(bad) = self.bad_stop(&u.stop, &mut Vec::new()) {
                         let help = format!(
                             "a stop is built from literals and primitives (except LINE, ROW and COL), with sequences, \
                              OR and repetitions, e.g. `{keyword} (NL DIGIT OR NL EOF)`; rules and labels are not allowed"
@@ -307,6 +314,23 @@ impl<'q> Checker<'q> {
                 }
             }
         }
+    }
+
+    /// The larger bound of a repetition as written. The parser clamps bounds to `u32`, so an
+    /// oversized one is read again from the source (the lexer already proved it fits `u64`).
+    fn written_bound(&self, p: &Pattern, r: &Repeat) -> u64 {
+        let head = self.repeat_head(p, r);
+        let from_source = crate::lexer::lex(&self.src[head.start..head.end]).ok().map(|tokens| {
+            tokens
+                .iter()
+                .filter_map(|t| match t.tok {
+                    crate::lexer::Tok::Int(n) => Some(n),
+                    _ => None,
+                })
+                .max()
+                .unwrap_or(0)
+        });
+        from_source.unwrap_or_else(|| u64::from(r.min.max(r.max.unwrap_or(0))))
     }
 
     /// The `min TO max [LAZY]` part of a repetition, without surrounding parentheses.

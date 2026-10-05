@@ -21,7 +21,7 @@ Exit codes: `0` success, `1` any error, `2` from `txtql check` when it finds amb
 | `txtql::parse::unexpected_char` | A character that is not part of the language (for example `\|`, `+` or `*` where `OR` or `a TO b` is meant). | `TEXT = 'a' \| 'b'` |
 | `txtql::parse::unterminated_string` | A string literal without its closing quote. | `TEXT = 'abc` |
 | `txtql::parse::bad_escape` | An unknown escape in a string; valid ones are `\n \t \r \\ \' \"`. | `TEXT = 'a\q'` |
-| `txtql::parse::bad_number` | A number literal that does not fit (for example `99999999999999999999999`). | `TEXT = 99999999999999999999999 WORD` |
+| `txtql::parse::bad_number` | A number that does not fit: an integer or repetition bound above 18446744073709551615 (for example `99999999999999999999999`), or a float that is not finite (`1e999`). | `TEXT = 99999999999999999999999 WORD` |
 | `txtql::parse::unexpected_token` | A token the grammar does not allow at that point (a keyword used as a name, a missing `)`, ...). | `TEXT = WORD )` |
 | `txtql::parse::unexpected_end` | The query ends in the middle of a construct. | `TEXT =` |
 | `txtql::parse::too_deep` | Parentheses, repetitions, templates or conditions nested more than 100 levels deep. | `TEXT = (((` ... `WORD` ... `)))` with 101 pairs of parentheses |
@@ -41,10 +41,10 @@ Exit codes: `0` success, `1` any error, `2` from `txtql check` when it finds amb
 | `txtql::check::empty_loop` | A repetition whose item can match empty text. | `TEXT = 1 TO n LINE` |
 | `txtql::check::empty_cycle` | A rule that can derive itself without consuming text. | `TEXT = a / a = a OR 'x'` |
 | `txtql::check::bad_bounds` | A lower bound above the upper bound. | `TEXT = 3 TO 2 WORD` |
-| `txtql::check::bound_too_large` | A finite bound above 10,000 (use `n`). | `TEXT = 1 TO 10001 WORD` |
-| `txtql::check::bad_stop` | Something that cannot be the stop of `UNTIL`/`UNTILBEFORE` (`ANY` alone, `LINE`, `ROW`, `COL`, labels and rules; aliases of allowed patterns are fine). | `TEXT = ANY UNTIL ANY` |
+| `txtql::check::bound_too_large` | A finite bound above 10,000 (use `n`); the message gives the bound as written. Also checked inside stops. | `TEXT = 1 TO 10001 WORD` |
+| `txtql::check::bad_stop` | Something that cannot be the stop of `UNTIL`/`UNTILBEFORE` (`ANY` alone, `LINE`, `ROW`, `COL`, labels, defined rules, nested `SPLITBY`/`SKIPPING`/stops; aliases of allowed patterns are fine). Other mistakes inside a stop get their usual code instead (empty literal, undefined rule, bounds, duplicate branch). | `TEXT = ANY UNTIL ANY` |
 | `txtql::check::empty_stop` | A stop that can match empty text (except `EOF`). | `TEXT = ANY UNTIL (0 TO 1 'x')` |
-| `txtql::check::empty_literal` | A literal with no characters. | `TEXT = ''` |
+| `txtql::check::empty_literal` | A literal with no characters (also inside a stop). | `TEXT = ''` |
 | `txtql::check::unknown_function` | A function name that does not exist (with a "did you mean" hint). | `TEXT = a:WORD AS NUMM(a)` |
 | `txtql::check::arity` | A function with the wrong number of arguments (for example `JOIN` without a separator). | `TEXT = 1 TO n a:WORD SPLITBY ' ' AS JOIN(a)` |
 | `txtql::lint::unused_alias` | Warning: an alias that `TEXT` cannot reach. | `TEXT = WORD / ALIAS sp = ' '` |

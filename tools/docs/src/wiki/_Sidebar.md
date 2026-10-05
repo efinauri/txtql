@@ -6,7 +6,7 @@
 - [[Practical Examples|Practical-Examples]]
 
 **Reference**
-- [[Language Reference|Language-Reference]]
+- [[Language Reference|Language-Reference]] (full language guide)
 - [[Ambiguity and Strict Mode|Ambiguity-and-Strict-Mode]]
 - [[Errors and Diagnostics|Errors-and-Diagnostics]]
 - [[Performance and Limits|Performance-and-Limits]]

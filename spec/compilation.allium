@@ -67,12 +67,31 @@ rule SubmitQuery {
 --   unexpected_char      `|` (hint: use OR), `*` `+` `?` (hint: `a TO b pattern`), others
 --   unterminated_string  a string with no closing quote
 --   bad_escape           an escape other than \n \t \r \\ \' \"
---   bad_number           a number too large to represent
+--   bad_number           a number literal outside its range, at its digits: beyond u64 for
+--                        an integer (repetition bounds included), not a finite float
+--                        otherwise; number literals are unsigned (lang/Lexicon.NumberLiterals)
 --   unexpected_token     "expected X, found Y", with hints for: a keyword used as a rule
 --                        name, alias name or label; `WHERE` after `AS`; a second WHERE or AS;
 --                        `WHERE`/`AS` on an alias; a missing `=`; `TO` missing in a
 --                        repetition; an upper bound that is neither a number nor `n`;
---                        object entries without `:`
+--                        object entries without `:` (including a FOR on a merge entry,
+--                        `{ r FOR r }`). Also, without a dedicated hint, a second SPLITBY
+--                        or SKIPPING on one repetition. Also reported here:
+--                          - a second stop (UNTIL/UNTILBEFORE) on one repetition, at the
+--                            second stop keyword, like a second SPLITBY; hint: combine the
+--                            conditions in one stop, `UNTIL (a OR b)`;
+--                          - a case-insensitive literal `i'...'` in a template (AS) or a WHERE
+--                            condition (including function arguments and FOR sources), at the
+--                            literal, the message showing it as written (`i'x'`); hint:
+--                            case-insensitive literals are only available in
+--                            patterns. (To compare without case, use LOWER/UPPER; the hint does
+--                            not say so.)
+--                          - any `-` in a template or WHERE operand, since there are no
+--                            negative number literals (`AS -5`, `AS - 5`, `AS [-1.5]`,
+--                            `WHERE NUM(n) > -5`), at the `-`, "found `-`", as for any stray
+--                            minus (`[ 2 - 3 ]`: "expected `,` or `]`, found `-`"); the sign
+--                            inside a float's exponent (`1e-5`) is part of the literal
+--                            (lang/Lexicon.NumberLiterals)
 --   unexpected_end       the query ends where something was still expected
 --   too_deep             more than max_query_nesting levels of nesting
 rule RejectSyntax {
@@ -98,7 +117,8 @@ rule AcceptSyntax {
 }
 
 -- First pass: names (including reserved names), roots, bounds, literals, OR branches, stops
--- and aliases. Always runs.
+-- and aliases. Always runs. The pattern checks (references, bounds, literals, OR branches)
+-- cover every pattern, inside SPLITBY, SKIPPING and stops included.
 
 -- Rules and aliases share one namespace; every spelling of the root's name is the same
 -- name (`TEXT` and `text` collide). Each later definition is reported with the first.
@@ -144,7 +164,9 @@ rule CheckReferences {
 }
 
 -- Literals must not be empty; finite bounds are at most max_repetition_bound; the lower
--- bound must not exceed the upper one.
+-- bound must not exceed the upper one. bound_too_large gives the bound as written
+-- (`5000000000 TO n WORD` reports 5000000000, not a clamped value); a bound beyond u64 never
+-- gets here (txtql::parse::bad_number).
 rule CheckPatternShapes {
     when: QueryParsed(compilation)
     requires: compilation.status = checked
@@ -170,11 +192,19 @@ rule CheckDuplicateBranches {
 }
 
 -- A stop is built from non-empty literals and primitives other than LINE, ROW and COL,
--- combined with sequences, OR and plain repetitions (no SPLITBY, SKIPPING or stop of their
--- own). Aliases are looked through; rules and labels are not allowed (bad_stop, reported
--- at the use site). ANY alone is not a stop, since it would end the repetition at once
+-- combined with groups, sequences, OR and plain repetitions (no SPLITBY, SKIPPING or stop of
+-- their own) (lang/RepetitionMatching.StopsArePlainPatterns). Aliases are looked through;
+-- rules and labels are not allowed (bad_stop, reported at the offending part, or at the
+-- alias use site when the offending part is inside an alias). ANY alone is not a stop, since it would end the repetition at once
 -- (bad_stop). A stop that can match empty text is not allowed either, except EOF
--- (empty_stop).
+-- (empty_stop). bad_stop is for references to defined rules, labels, ANY alone,
+-- LINE/ROW/COL and nested SPLITBY/SKIPPING/stops. The first-pass checks run inside stops
+-- as elsewhere (empty_literal, undefined_rule, bad_bounds, bound_too_large,
+-- duplicate_branch), and their specific diagnostic wins: a stop node that already received
+-- one of them is reported neither as bad_stop nor as empty_stop. An undefined name in a
+-- stop (`UNTIL fooo`) is undefined_rule only, with its hint; an empty literal (`UNTIL ''`)
+-- is empty_literal only; an oversized bound (`ANY UNTIL 0 TO 99999 'a'`) is
+-- bound_too_large only, though the repetition could also match empty text.
 rule CheckStops {
     when: QueryParsed(compilation)
     requires: compilation.status = checked

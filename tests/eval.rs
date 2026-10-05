@@ -231,6 +231,21 @@ fn until_consumes_the_longest_stop() {
 }
 
 #[test]
+fn one_stop_per_repetition_and_stops_on_groups() {
+    // Several conditions in one stop.
+    assert_eq!(run("TEXT = 1 TO n ANY UNTIL (';' OR '!')", "ab!"), json!(["a", "b"]));
+    assert_eq!(run("TEXT = 1 TO n ANY UNTIL (';' OR '!')", "ab;"), json!(["a", "b"]));
+    // A stop on a group: a new repetition of the group, with its own stop.
+    assert_eq!(run("TEXT = (0 TO n ANY UNTIL ';') UNTIL '!'", "ab;c;!"), json!([["a", "b"], ["c"]]));
+    assert_eq!(run("TEXT = (ANY UNTIL ';') UNTIL '!'", "ab;c;!"), json!([["a", "b"], ["c"]]));
+    // Two stops directly on one repetition are a syntax error, not a nested repetition.
+    for src in ["TEXT = 1 TO n ANY UNTIL ';' UNTIL '!'", "TEXT = 1 TO n ANY UNTILBEFORE ';' UNTILBEFORE '!'"] {
+        let e = compile_err(src);
+        assert!(e.contains("txtql::parse::unexpected_token"), "{src}\n{e}");
+    }
+}
+
+#[test]
 fn recursive_values() {
     assert_eq!(
         run("list = '(' 0 TO n items:(WORD OR list) SPLITBY ' ' ')' AS items\nTEXT = list", "(a (b) ())"),
@@ -243,9 +258,94 @@ fn recursive_values() {
 #[test]
 fn literal_templates() {
     assert_eq!(
-        run("TEXT = WORD AS { 's': 'x', 'i': 1, 'f': -2.5, 't': true, 'f2': false, 'n': null, 'a': [], 'o': {} }", "w"),
-        json!({"s": "x", "i": 1, "f": -2.5, "t": true, "f2": false, "n": null, "a": [], "o": {}})
+        run("TEXT = WORD AS { 's': 'x', 'i': 1, 'f': 2.5, 't': true, 'f2': false, 'n': null, 'a': [], 'o': {} }", "w"),
+        json!({"s": "x", "i": 1, "f": 2.5, "t": true, "f2": false, "n": null, "a": [], "o": {}})
     );
+}
+
+#[test]
+fn integer_literals_at_their_limits() {
+    // Number literals are unsigned (lang/Lexicon.NumberLiterals): u64::MAX is the largest.
+    assert_eq!(run("TEXT = WORD AS 18446744073709551615", "w"), json!(u64::MAX));
+    assert_eq!(run("TEXT = WORD AS [0, 18446744073709551615]", "w"), json!([0, u64::MAX]));
+    assert_eq!(run("TEXT = n:INT WHERE NUM(n) < 18446744073709551615 AS NUM(n)", "5"), json!(5));
+    let e = compile_err("TEXT = WORD AS 18446744073709551616");
+    assert!(e.contains("txtql::parse::bad_number"), "{e}");
+    // There are no negative literals, so i64::MIN cannot be written.
+    for src in [
+        "TEXT = WORD AS -9223372036854775808",
+        "TEXT = WORD AS [-9223372036854775808, 18446744073709551615]",
+        "TEXT = n:INT WHERE NUM(n) > -9223372036854775808 AS NUM(n)",
+    ] {
+        let e = compile_err(src);
+        assert!(e.contains("txtql::parse::unexpected_token"), "{src}\n{e}");
+        assert!(e.contains("found `-`"), "{src}\n{e}");
+    }
+}
+
+#[test]
+fn float_literals_with_signed_exponents() {
+    assert_eq!(run("TEXT = WORD AS [1e-5, 2.5e-7, 1E+3, 1e-999]", "w"), json!([1e-5, 2.5e-7, 1000.0, 0.0]));
+    assert_eq!(run("TEXT = n:FLOAT WHERE NUM(n) > 1e-5 AS NUM(n)", "0.5"), json!(0.5));
+    assert!(compile_err("TEXT = WORD AS 1e999").contains("txtql::parse::bad_number"));
+}
+
+#[test]
+fn negative_values_come_from_captured_text() {
+    // lang/Lexicon.NumberLiterals guidance: capture the sign and apply NUM.
+    assert_eq!(run("TEXT = n:(0 TO 1 '-' INT) AS NUM(n)", "-42"), json!(-42));
+    assert_eq!(run("TEXT = n:(0 TO 1 '-' INT) AS NUM(n)", "42"), json!(42));
+    assert_eq!(run("TEXT = n:(0 TO 1 '-' INT) WHERE NUM(n) < 0 AS NUM(n)", "-7"), json!(-7));
+    // A sign exposed on its own.
+    assert_eq!(
+        run("minus = '-' AS true\nTEXT = 0 TO 1 neg:minus v:INT AS { 'neg': neg, 'v': NUM(v) }", "-3"),
+        json!({"neg": true, "v": 3})
+    );
+    assert_eq!(
+        run("minus = '-' AS true\nTEXT = 0 TO 1 neg:minus v:INT AS { 'neg': neg, 'v': NUM(v) }", "3"),
+        json!({"neg": null, "v": 3})
+    );
+}
+
+#[test]
+fn negative_literals_are_rejected_everywhere() {
+    for src in [
+        "TEXT = WORD AS -5",
+        "TEXT = WORD AS - 5",
+        "TEXT = WORD AS [-1.5]",
+        "TEXT = WORD AS { 'k': -2.5 }",
+        "TEXT = w:WORD AS LOWER(-1)",
+        "TEXT = n:INT WHERE NUM(n) > -5 AS n",
+    ] {
+        let e = compile_err(src);
+        assert!(e.contains("txtql::parse::unexpected_token"), "{src}\n{e}");
+        assert!(e.contains("found `-`"), "{src}\n{e}");
+    }
+}
+
+#[test]
+fn ci_literals_only_in_patterns() {
+    assert_eq!(run("TEXT = i'hello' AS 'matched'", "HELLO"), json!("matched"));
+    assert_eq!(run(r#"TEXT = i"hello" AS 'matched'"#, "HeLLo"), json!("matched"));
+    // `i` then a space: a rule named `i`, then a plain literal.
+    assert_eq!(run("i = DIGIT\nTEXT = i 'abc'", "7abc"), json!({"i": "7"}));
+    assert_eq!(run("TEXT = i:WORD ' ' WORD WHERE i = 'abc' AS { 'k': i }", "abc d"), json!({"k": "abc"}));
+    for src in
+        ["TEXT = w:WORD AS i'Q'", "TEXT = w:WORD WHERE w = i'hello' AS w", "TEXT = w:WORD WHERE w CONTAINS i'EL' AS w"]
+    {
+        let e = compile_err(src);
+        assert!(e.contains("txtql::parse::unexpected_token"), "{src}\n{e}");
+        assert!(e.contains("only available in patterns"), "{src}\n{e}");
+    }
+    // The message shows the literal as written (lang/Lexicon.Strings).
+    for (src, shown) in [
+        ("TEXT = w:WORD AS i'Q'", "found `i'Q'`"),
+        ("TEXT = w:WORD WHERE w = i'hello' AS w", "found `i'hello'`"),
+        (r#"TEXT = w:WORD WHERE w CONTAINS i"EL" AS w"#, r#"found `i"EL"`"#),
+    ] {
+        let e = compile_err(src);
+        assert!(e.contains(shown), "{src}: message should contain {shown:?}\n{e}");
+    }
 }
 
 #[test]

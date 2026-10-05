@@ -8,6 +8,7 @@ HERE = pathlib.Path(__file__).parent
 REPO = HERE.parent.parent
 BIN = REPO / 'target/release/txtql'
 sys.path.insert(0, str(HERE))
+sys.dont_write_bytecode = True  # do not leave tools/docs/__pycache__ behind
 from examples import EXAMPLES
 
 cache = {}
@@ -78,8 +79,8 @@ def render(name, variant=''):
     return '\n\n'.join(parts)
 
 def mini_table(group):
-    from examples import MINI
-    rows = ['| Pattern or feature | Query | Input | Result |', '|---|---|---|---|']
+    from examples import MINI, MINI_HEAD
+    rows = [f"| {MINI_HEAD.get(group, 'Pattern or feature')} | Query | Input | Result |", '|---|---|---|---|']
     for m in MINI[group]:
         with tempfile.TemporaryDirectory() as d:
             pathlib.Path(d, 'query.tql').write_text(m['q'])

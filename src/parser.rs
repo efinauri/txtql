@@ -91,6 +91,8 @@ impl Parser<'_> {
         // A keyword is shown as it was written, since any spelling is that keyword.
         let found = match self.peek() {
             Tok::Kw(_) => format!("keyword `{}`", self.src_text(self.span())),
+            // A case-insensitive literal is shown as written, `i` prefix included.
+            Tok::Str { ci: true, .. } => format!("`{}`", self.src_text(self.span())),
             other => other.describe(),
         };
         ParseError::Unexpected { expected: expected.to_string(), found, span: self.span(), help }
@@ -260,6 +262,9 @@ impl Parser<'_> {
                     let span = item.span.to(self.prev_span());
                     let rep =
                         Repeat { min: 0, max: None, lazy: false, item, sep: None, skip: None, until: Some(until) };
+                    if self.at_stop_keyword() {
+                        return Err(self.second_stop());
+                    }
                     Pattern { kind: PatKind::Repeat(Box::new(rep)), span }
                 }
                 None => item,
@@ -310,7 +315,7 @@ impl Parser<'_> {
         match self.peek() {
             &Tok::Int(n) => {
                 self.bump();
-                // Oversized bounds are reported by `check` with a better message.
+                // Oversized bounds are clamped here; `check` reports them as written, from the source.
                 Ok((u32::try_from(n).unwrap_or(u32::MAX), span))
             }
             _ => Err(self.unexpected("a number")),
@@ -355,12 +360,26 @@ impl Parser<'_> {
                 && let Some(u) = self.until()?
             {
                 until = Some(u);
+            } else if until.is_some() && self.at_stop_keyword() {
+                return Err(self.second_stop());
             } else {
                 break;
             }
         }
         let span = start.to(self.prev_span());
         Ok(Pattern { kind: PatKind::Repeat(Box::new(Repeat { min, max, lazy, item, sep, skip, until })), span })
+    }
+
+    fn at_stop_keyword(&self) -> bool {
+        matches!(self.peek(), Tok::Kw(Kw::UNTIL | Kw::UNTILBEFORE))
+    }
+
+    /// A second stop on one repetition, reported at its keyword.
+    fn second_stop(&self) -> ParseError {
+        self.unexpected_help(
+            "the end of the repetition",
+            Some("a repetition takes one stop; to stop at either of two patterns write `UNTIL (a OR b)`".into()),
+        )
     }
 
     /// An `UNTILBEFORE s` / `UNTIL s` clause, if one comes next.
@@ -494,6 +513,12 @@ impl Parser<'_> {
     fn tmpl_inner(&mut self) -> PResult<Template> {
         let start = self.span();
         let kind = match self.peek().clone() {
+            Tok::Str { ci: true, .. } => {
+                return Err(self.unexpected_help(
+                    "a value (string, number, name, `{`, or `[`)",
+                    Some("case-insensitive literals are only available in patterns".into()),
+                ));
+            }
             Tok::Str { value, .. } => {
                 self.bump();
                 TmplKind::Str(value)
@@ -505,21 +530,6 @@ impl Parser<'_> {
             Tok::Float(f) => {
                 self.bump();
                 TmplKind::Num(serde_json::Number::from_f64(f).ok_or(ParseError::BadNumber { span: start })?)
-            }
-            Tok::Minus => {
-                self.bump();
-                let span = self.span();
-                let num = match *self.peek() {
-                    Tok::Int(n) => i64::try_from(n)
-                        .ok()
-                        .and_then(|n| n.checked_neg())
-                        .map(serde_json::Number::from)
-                        .ok_or(ParseError::BadNumber { span })?,
-                    Tok::Float(f) => serde_json::Number::from_f64(-f).ok_or(ParseError::BadNumber { span })?,
-                    _ => return Err(self.unexpected("a number after `-`")),
-                };
-                self.bump();
-                TmplKind::Num(num)
             }
             Tok::Ident(name) => {
                 let ident = Ident { name, span: self.bump().span };

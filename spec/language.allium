@@ -33,11 +33,14 @@ value JsonValue {
     kind: JsonKind
 }
 
--- One entry of an object template.
---   `key: value`                  key present, collect_all = false
---   `key: LISTOF value`           collect_all = true
---   `name` (no key)               a merge entry: key absent
---   `... FOR var [IN source]`     iteration present
+-- One entry of an object template. Two forms:
+--   keyed:  `key: [LISTOF] value [FOR var [IN source]]`
+--           key present; collect_all = true with LISTOF; iteration present with FOR.
+--   merge:  `name` (no key, no `:`)
+--           key absent, collect_all = false, iteration always absent.
+-- A merge entry never takes a FOR: `{ r FOR r }` is a syntax error
+-- (txtql::parse::unexpected_token, expected `:`, `,` or `}`). To merge every object of a
+-- list, write the list itself as the merge entry (see TemplateEvaluation.MergeEntries).
 value ObjectEntry {
     key: Template?
     value: Template
@@ -119,7 +122,7 @@ contract PrimitiveMatching {
     @invariant Literals
         -- A quoted literal matches exactly its text. `i'text'` ignores case using simple
         -- per-character lower-casing, not full Unicode case folding (`ß` does not match
-        -- `SS`).
+        -- `SS`). `i'text'` exists only in patterns (see Lexicon.Strings).
 }
 
 -- How a repetition `min TO max [LAZY] item [SPLITBY sep] [SKIPPING skip]
@@ -153,15 +156,46 @@ contract RepetitionMatching {
     @invariant ShortForm
         -- `p UNTIL s` and `p UNTILBEFORE s` written without bounds mean `0 TO n p UNTIL s`
         -- and `0 TO n p UNTILBEFORE s`. A label written before the short form labels the item
-        -- `p`, not the repetition: `k:ANY UNTILBEFORE '='` repeats `k:ANY`.
+        -- `p`, not the repetition: `k:ANY UNTILBEFORE '='` repeats `k:ANY`. The short form
+        -- takes only its stop: SPLITBY or SKIPPING after it (`p UNTIL a SPLITBY ','`) is a
+        -- syntax error (txtql::parse::unexpected_token); write the bounded form instead.
 
     @invariant StopsNeverInValues
         -- A stop is never part of any value, including the text captured by a label on the
         -- repetition.
 
+    @invariant OneStopPerRepetition
+        -- A repetition takes at most one stop (UNTIL or UNTILBEFORE), just as it takes at
+        -- most one SPLITBY and one SKIPPING. Several stop conditions are written as one stop
+        -- with OR: `UNTIL (a OR b)`. A second stop on the same repetition, in the bounded or
+        -- the short form (`p UNTIL a UNTIL b`, `p UNTIL a UNTILBEFORE b`), is a syntax error
+        -- (txtql::parse::unexpected_token). A parenthesised group is a separate item, so
+        -- `(p UNTIL a) UNTIL b` (likewise `(0 TO n p UNTIL a) UNTIL b`) is legal: the outer
+        -- UNTIL is the short form applied to the group, a new repetition with its own stop.
+        -- A stop is a single item, so a bounded repetition written as the stop takes the
+        -- following stop as its own: `p UNTIL 0 TO n x UNTIL b` parses, the second UNTIL
+        -- belonging to the stop's repetition, and is then rejected by StopsArePlainPatterns
+        -- (txtql::check::bad_stop).
+
+    @invariant StopsArePlainPatterns
+        -- A stop may contain only: non-empty literals (`'x'`, `i'x'`); primitives other than
+        -- LINE, ROW and COL; aliases (looked through, as if their pattern were written in
+        -- place, and judged at the use site); parenthesised groups; OR; sequences; and
+        -- repetitions without SPLITBY, SKIPPING or a stop of their own, whose items follow
+        -- these same rules. References to rules and labels are not allowed anywhere inside a
+        -- stop. ANY alone is not a stop, since it would end the repetition at once. Each
+        -- violation is a static error (txtql::check::bad_stop). A stop that can match empty
+        -- text, other than EOF, is txtql::check::empty_stop. The checks that apply to every
+        -- pattern apply inside a stop too, with their own codes: an empty literal is
+        -- txtql::check::empty_literal and a name that is neither a rule nor an alias is
+        -- txtql::check::undefined_rule (not bad_stop); bounds and duplicate OR branches are
+        -- checked as anywhere else (see RepetitionBoundsAreValid).
+
     @invariant StopsMatchAnywhereTheyCan
         -- A stop is matched as a whole wherever it begins: a sequence or repetition inside a
         -- stop matches if any of its readings does. EOF inside a stop matches only at the end.
+        -- Because a stop holds only the plain patterns allowed by StopsArePlainPatterns, it
+        -- never captures, never recurses into a rule, and never has a stop of its own.
 }
 
 -- Which part of a match a capture name refers to, and what value it holds.
@@ -231,7 +265,9 @@ contract TemplateEvaluation {
         -- matched noun as the key. Literals: text, numbers (with exponent), `true`, `false`,
         -- `null` (in any case). Because these constants are recognised in any case, no rule,
         -- alias, label or FOR loop variable may be named after them (see
-        -- Lexicon.ReservedConstantNames).
+        -- Lexicon.ReservedConstantNames). Text literals in templates are plain `'...'` or
+        -- `"..."`; the case-insensitive form `i'...'` is not a template value (see
+        -- Lexicon.Strings). Number literals follow Lexicon.NumberLiterals.
 
     @invariant Paths
         -- `name.field.field` reads fields of object values. A field of null is null; a
@@ -256,7 +292,8 @@ contract TemplateEvaluation {
     @invariant MergeEntries
         -- An entry without a key merges the object, or every object of a list of objects,
         -- into the object being built. Null (and null list items) add nothing. Merging text,
-        -- numbers or booleans is an error.
+        -- numbers or booleans is an error. A merge entry never iterates: FOR belongs only to
+        -- `key: value` entries and to array elements.
 
     @invariant Iteration
         -- `FOR var` iterates the list captured as `var`; `FOR var IN source` iterates any
@@ -313,6 +350,11 @@ contract ConditionEvaluation {
     @invariant Connectives
         -- AND, OR and NOT short-circuit left to right; NOT binds tighter than AND, AND
         -- tighter than OR.
+
+    @invariant OperandsAreTemplateValues
+        -- Both sides of a comparison, and a bare truthy value, are template values with the
+        -- same literals as AS: in particular `i'...'` is not allowed in a condition
+        -- (see Lexicon.Strings). Case-insensitive comparison is written with LOWER or UPPER.
 }
 
 -- Spelling rules of the query text.
@@ -337,7 +379,27 @@ contract Lexicon {
 
     @invariant Strings
         -- Literals are quoted with `'` or `"`, may span lines, and support the escapes
-        -- `\n`, `\t`, `\r`, `\\`, `\'` and `\"`. `i'...'` marks a case-insensitive literal.
+        -- `\n`, `\t`, `\r`, `\\`, `\'` and `\"`. `i'...'` (or `i"..."`) marks a
+        -- case-insensitive literal, which exists only in patterns. Writing one in a template
+        -- (AS) or in a WHERE condition is a syntax error (txtql::parse::unexpected_token)
+        -- whose message shows the literal as written (`i'x'`, not just the string) and
+        -- whose hint says that case-insensitive literals are only available in patterns.
+
+    @invariant NumberLiterals
+        -- Number literals appear in templates and conditions and are unsigned: there are no
+        -- negative number literals. A number literal is either an unsigned integer that
+        -- fits an unsigned 64-bit integer (0 to 18446744073709551615), or an unsigned float
+        -- (a fractional part and/or an exponent, the exponent with an optional sign:
+        -- `1e-5`, `2.5e-7`, `1E+3`) that is a finite 64-bit float; one too small to
+        -- represent rounds to zero (`1e-999` is 0.0). A `-` in a template or a WHERE operand
+        -- is never part of a number: `AS -5`, `AS - 5`, `AS [-1.5]` and
+        -- `WHERE NUM(n) > -5` are all syntax errors (txtql::parse::unexpected_token,
+        -- reported at the `-`, like any other stray `-`). A literal beyond u64 or not a
+        -- finite float is a syntax error (txtql::parse::bad_number), reported at its
+        -- digits. A repetition bound is an integer literal too: one beyond the unsigned
+        -- 64-bit range is likewise txtql::parse::bad_number, while a smaller one above
+        -- max_repetition_bound is a static error (see RepetitionBoundsAreValid) whose message
+        -- gives the bound as written (`5000000000 TO n WORD` reports 5000000000).
 
     @invariant Comments
         -- `--` starts a comment that runs to the end of the line.
@@ -349,6 +411,12 @@ contract Lexicon {
     @invariant FieldNamesAreFree
         -- After `.` in a template path any word is a field name, keywords included, since
         -- fields come from the data.
+
+    @guidance
+        -- Without negative literals, a negative value still reaches the output by capturing
+        -- signed text and applying NUM: `n:(0 TO 1 '-' INT) AS NUM(n)` on `-42` gives -42.
+        -- A sign can be exposed on its own with a rule `minus = '-' AS true` and
+        -- `0 TO 1 neg:minus` in the pattern (neg is true or null).
 }
 
 ------------------------------------------------------------
@@ -443,7 +511,12 @@ variant AlternativesPattern : Pattern {
 }
 
 -- `min TO max [LAZY] item [SPLITBY sep] [SKIPPING skip] [UNTIL | UNTILBEFORE stop]`.
--- The clauses come in any order, each at most once. `max` absent means `n` (unlimited).
+-- The clauses come in any order. A repetition has at most one SPLITBY, at most one SKIPPING
+-- and at most one stop (UNTIL or UNTILBEFORE, not both, neither twice); a second clause of
+-- the same kind is a syntax error (txtql::parse::unexpected_token; see
+-- RepetitionMatching.OneStopPerRepetition). This applies to clauses written directly on
+-- the same repetition: `(p UNTIL a) UNTIL b` is legal, the outer stop belonging to a new
+-- short-form repetition whose item is the group. `max` absent means `n` (unlimited).
 variant RepetitionPattern : Pattern {
     min: Integer
     max: Integer?
@@ -462,7 +535,7 @@ entity Template {
     kind: ConstantTemplate | PathTemplate | CallTemplate | ObjectTemplate | ArrayTemplate
 }
 
--- `'x'`, `1`, `-2.5`, `1e-8`, `true`, `false`, `null`.
+-- `'x'`, `1`, `2.5`, `1e-8`, `true`, `false`, `null`. Never `i'x'` (patterns only).
 variant ConstantTemplate : Template {
     constant: JsonValue
 }

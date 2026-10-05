@@ -19,7 +19,7 @@ Applied to `roses are red`, `violets are blue` and `bees are black and yellow` (
 
 ## Reference
 
-- [[Language Reference|Language-Reference]]: syntax, built-in patterns, repetition, templates, functions, operators.
+- [[Language Reference|Language-Reference]]: the full language guide: grammar and precedence, built-in patterns, repetition, templates, functions, operators.
 - [[Ambiguity and Strict Mode|Ambiguity-and-Strict-Mode]]: how txtql chooses between readings and warns about the others.
 - [[Errors and Diagnostics|Errors-and-Diagnostics]]: every `txtql::*` code.
 - [[Performance and Limits|Performance-and-Limits]]: `--max-steps`, `--max-depth`, scaling.

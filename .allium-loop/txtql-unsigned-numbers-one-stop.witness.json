@@ -1,0 +1,25 @@
+{
+  "goal_slug": "txtql-unsigned-numbers-one-stop",
+  "ticks_witnessed": 1,
+  "baseline_commit": "a43249d",
+  "witnessed_on": "2026-10-05",
+  "verdict": "PASS",
+  "checks": [
+    { "name": "allium-check-analyse", "result": "pass", "ground_truth": "allium check txtql.allium spec/ exit 0, allium analyse exit 0; 0 findings; only 14 info-level allium.field.unused diagnostics in spec/language.allium" },
+    { "name": "tests-pass", "result": "pass", "ground_truth": "cargo test --locked --no-fail-fast exit 0; lib 43, main 0, check 59, cli 19, compile 18, disambiguate 26, earley 30, editors 2, eval 66, golden 1, lsp 6, parser 64, properties 10 (+1 ignored), stress 20 (+2 ignored), doc-tests 1; 0 failed" },
+    { "name": "ignored-tests", "result": "pass", "ground_truth": "3 ignored, all present at a43249d (0 #[ignore] lines added in diff): stress::ten_megabytes_of_rhymes, stress::ten_megabytes_of_log_lines (slow in debug), properties::generator_stats (manual)" },
+    { "name": "no-test-weakened", "result": "pass", "ground_truth": "git diff a43249d -- tests/: +444/-8. Removed/changed lines: eval literal_templates -2.5 -> 2.5; parser template_values -2/-0.5 -> 2/0.5; printer_round_trips -1.5 -> 1.5 and -2.5e-7 -> 2.5e-7 (plus a new roundtrip line); properties random_tmpl generator now unsigned (adds u64::MAX, 2.5e-7); snapshot parser__until_errors-2 message changed to 'expected the end of the repetition' plus help line. All attributable to the unsigned-literal and one-stop contract changes; negative forms are now asserted as unexpected_token in new tests. No new #[ignore], no commented-out or vacuous asserts found. No i64-minimum lines appear in the removed set." },
+    { "name": "open-questions", "result": "pass", "ground_truth": "grep -i 'open question' txtql.allium spec/ -> no matches" },
+    { "name": "cli-spot-check", "result": "pass", "ground_truth": "release build fresh. AS -5, AS - 5, WHERE NUM(n) > -5 -> parse::unexpected_token at '-'; AS i'Q' -> unexpected_token showing i'Q' with pattern-only help; ANY UNTIL 'a' UNTIL 'b' -> unexpected_token with one-stop help; UNTIL '' -> empty_literal only; UNTIL fooo -> undefined_rule (did-you-mean hint when fool exists); UNTIL 3 TO 1 'a' -> bad_bounds only; UNTIL ('a' OR 'a') -> duplicate_branch; 5000000000 TO n WORD -> bound_too_large '5000000000'; AS 18446744073709551615 -> 18446744073709551615; 18446744073709551616 -> bad_number; AS 1e-5 -> 0.00001; n:(0 TO 1 '-' INT) AS NUM(n) on '-42' -> -42" },
+    { "name": "docs-generator", "result": "pass", "ground_truth": "python3 tools/docs/gen.py --check exit 1 with stale docs: ['README.md'] only (allowed); 159 prose claims, 134/134 examples run, 0 unexpected exit codes; 19 examples defined but unused (informational). tools/docs/__pycache__ absent before the run; gen.py recreates it on every run (gitignored); the witness removed the copy its own run created" },
+    { "name": "propagate-ledger-hashes", "result": "inconclusive", "ground_truth": "no propagate hash ledger for this goal in .allium-loop/; replaced by git diff against a43249d" },
+    { "name": "weed-verdict", "result": "inconclusive", "ground_truth": "no recorded weed verdict available; hard mode not requested" }
+  ],
+  "violations": [],
+  "caveats": [
+    "tools/docs/gen.py --check writes tools/docs/__pycache__ on every run (no sys.dont_write_bytecode); gitignored, absent at witness end",
+    "19 docs examples defined but unused (informational output of gen.py)",
+    "ledger-based checks (propagate hashes, weed verdict) inconclusive; git-diff review used in their place"
+  ],
+  "skipped": ["propagate hash comparison (no ledger)", "weed verdict (none recorded; hard mode off)", "red-before-green (no ledger)"]
+}

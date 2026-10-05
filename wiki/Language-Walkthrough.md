@@ -1,7 +1,8 @@
 # Language Walkthrough
 
 A step-by-step tour of txtql. Each step adds one idea and shows a query, an input and the exact output.
-For a condensed list of everything, see [[Language Reference|Language-Reference]].
+For a condensed list of everything, with the formal grammar and the precedence rules, see the
+[[Language Reference|Language-Reference]].
 
 ## How to follow along
 
@@ -173,7 +174,7 @@ Rule names are what the result is keyed by here: `greeting` and `name` are captu
 ## 2. Literals and built-in patterns
 
 A **literal** is text in single or double quotes. It matches exactly that text, spaces included.
-`i'text'` ignores case. Escapes `\n`, `\t`, `\r`, `\\`, `\'` and `\"` work inside quotes, and a literal may span lines.
+In a pattern, `i'text'` ignores case (it is not available in templates or conditions). Escapes `\n`, `\t`, `\r`, `\\`, `\'` and `\"` work inside quotes, and a literal may span lines.
 
 **Query** (`query.tql`)
 
@@ -1215,7 +1216,7 @@ Arrays and constants (`'text'`, numbers, `true`, `false`, `null`, in any case):
 **Query** (`query.tql`)
 
 ```txtql
-TEXT = name:WORD ' ' age:INT AS [ name, NUM(age), true, null, 'x', -2.5 ]
+TEXT = name:WORD ' ' age:INT AS [ name, NUM(age), true, null, 'x', 2.5 ]
 ```
 
 **Input** (`input.txt`)
@@ -1233,7 +1234,7 @@ Ada 36
   true,
   null,
   "x",
-  -2.5
+  2.5
 ]
 ```
 
@@ -1562,6 +1563,77 @@ Advice:
    · ─┬─
    ·  ╰── matched text
    ╰────
+```
+
+### Negative numbers
+
+Number literals are unsigned: there is no `-5` in a template or a condition (`AS -5`, `AS - 5` and
+`WHERE NUM(n) > -5` are all syntax errors). A negative value comes from the data instead: capture the sign with the
+digits, and `NUM` reads it.
+
+**Query** (`query.tql`)
+
+```txtql
+TEXT = n:(0 TO 1 '-' INT) AS NUM(n)
+```
+
+**Input** (`input.txt`)
+
+```text
+-42
+```
+
+**Output**
+
+```json
+-42
+```
+
+To use the sign on its own, give it a rule that produces `true`. In `0 TO 1 neg:minus`, `neg` is `true` when a sign was
+there and `null` when it was not:
+
+**Query** (`query.tql`)
+
+```txtql
+minus = '-' AS true
+TEXT = 0 TO 1 neg:minus v:INT AS { 'neg': neg, 'v': NUM(v) }
+```
+
+**Input** (`input.txt`)
+
+```text
+-3
+```
+
+**Output**
+
+```json
+{
+  "neg": true,
+  "v": 3
+}
+```
+
+In a condition, test the sign instead of comparing with a negative literal. This keeps only the numbers above 10 that
+are not negative-signed:
+
+**Query** (`query.tql`)
+
+```txtql
+minus = '-' AS true
+TEXT = 0 TO 1 neg:minus n:INT WHERE neg != null AND NUM(n) > 10 AS NUM(n)
+```
+
+**Input** (`input.txt`)
+
+```text
+-42
+```
+
+**Output**
+
+```json
+42
 ```
 
 ## 8. Conditions (WHERE)
@@ -2276,7 +2348,7 @@ x
 ## Where next
 
 - [[Practical Examples|Practical-Examples]]: real-world recipes (CSV, logs, configs, emails, pipelines) built from these ideas.
-- [[Language Reference|Language-Reference]]: everything on one page.
+- [[Language Reference|Language-Reference]]: everything on one page, including the formal grammar.
 - [[Ambiguity and Strict Mode|Ambiguity-and-Strict-Mode]] and [[Errors and Diagnostics|Errors-and-Diagnostics]].
 - The `tests/cases/` directory in the repository holds larger worked queries: invoices, CSV with a header row, HTTP headers,
   a web server log, a game playtest log and all twelve Advent of Code 2025 example inputs.

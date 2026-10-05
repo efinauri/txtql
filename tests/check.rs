@@ -220,6 +220,81 @@ fn bad_stop() {
 }
 
 #[test]
+fn bad_stop_cases_that_remain() {
+    // bad_stop is for defined rules, labels, ANY alone, LINE/ROW/COL and nested clauses.
+    assert_eq!(codes("w = WORD\nTEXT = w ANY UNTIL w"), ["txtql::check::bad_stop"]);
+    assert_eq!(codes("TEXT = ANY UNTIL x:'a'"), ["txtql::check::bad_stop"]);
+    assert_eq!(codes("TEXT = ANY UNTIL ANY"), ["txtql::check::bad_stop"]);
+    assert_eq!(codes("TEXT = ANY UNTILBEFORE COL"), ["txtql::check::bad_stop"]);
+    assert_eq!(codes("TEXT = ANY UNTIL (1 TO n 'a' SKIPPING ' ')"), ["txtql::check::bad_stop"]);
+    assert_eq!(codes("TEXT = ANY UNTIL (1 TO n 'a' UNTIL 'b')"), ["txtql::check::bad_stop"]);
+}
+
+// ---- first-pass checks run inside stops (CheckStops, lang/StopsArePlainPatterns) ----
+
+#[test]
+fn bounds_are_checked_inside_stops() {
+    assert_eq!(codes("TEXT = ANY UNTIL 3 TO 1 'a'"), ["txtql::check::bad_bounds"]);
+    assert_eq!(codes("TEXT = ANY UNTILBEFORE (3 TO 1 'a' OR 'b')"), ["txtql::check::bad_bounds"]);
+    assert_eq!(codes("TEXT = ANY UNTIL 1 TO 99999 'a'"), ["txtql::check::bound_too_large"]);
+    // A stop that can be empty may also be reported as empty_stop; the bound is still checked.
+    let c = codes("TEXT = ANY UNTIL 0 TO 99999 'a'");
+    assert!(c.contains(&"txtql::check::bound_too_large".to_string()), "{c:?}");
+    assert!(!c.contains(&"txtql::check::bad_stop".to_string()), "{c:?}");
+}
+
+#[test]
+fn duplicate_branches_are_checked_inside_stops() {
+    assert_eq!(codes("TEXT = ANY UNTIL ('a' OR 'a')"), ["txtql::check::duplicate_branch"]);
+    assert_eq!(codes("TEXT = ANY UNTILBEFORE ('a' OR WORD OR 'a')"), ["txtql::check::duplicate_branch"]);
+}
+
+#[test]
+fn undefined_name_in_a_stop_is_undefined_rule_with_hint() {
+    let q = "fooo2 = WORD\nTEXT = fooo2 ANY UNTIL fooo";
+    assert_eq!(codes(q), ["txtql::check::undefined_rule"]);
+    let e = compile_err(q);
+    assert!(e.contains("did you mean `fooo2`?"), "{e}");
+    assert!(!e.contains("bad_stop"), "{e}");
+    assert_eq!(codes("TEXT = ANY UNTILBEFORE (';' OR nothere)"), ["txtql::check::undefined_rule"]);
+}
+
+#[test]
+fn empty_literal_in_a_stop_is_empty_literal() {
+    for q in ["TEXT = ANY UNTIL ''", "TEXT = ANY UNTILBEFORE (';' OR '')"] {
+        let c = codes(q);
+        assert!(c.contains(&"txtql::check::empty_literal".to_string()), "{q}: {c:?}");
+        assert!(!c.contains(&"txtql::check::bad_stop".to_string()), "{q}: {c:?}");
+    }
+}
+
+#[test]
+fn pattern_checks_run_inside_splitby_and_skipping() {
+    assert_eq!(codes("TEXT = 1 TO n WORD SPLITBY (',' OR ',')"), ["txtql::check::duplicate_branch"]);
+    assert_eq!(codes("TEXT = 1 TO n WORD SKIPPING (' ' OR ' ')"), ["txtql::check::duplicate_branch"]);
+    assert_eq!(codes("TEXT = 1 TO n WORD SPLITBY 3 TO 1 ','"), ["txtql::check::bad_bounds"]);
+    assert_eq!(codes("TEXT = 1 TO n WORD SPLITBY nothere"), ["txtql::check::undefined_rule"]);
+    assert!(codes("TEXT = 1 TO n WORD SPLITBY ''").contains(&"txtql::check::empty_literal".to_string()));
+}
+
+#[test]
+fn bound_too_large_reports_the_bound_as_written() {
+    for (q, written) in [
+        ("TEXT = 5000000000 TO n WORD", "5000000000"),
+        ("TEXT = 1 TO 5000000000 WORD", "5000000000"),
+        ("TEXT = 1 TO 18446744073709551615 WORD", "18446744073709551615"),
+    ] {
+        assert_eq!(codes(q), ["txtql::check::bound_too_large"], "{q}");
+        let e = compile_err(q);
+        assert!(e.contains(&format!("repetition bound {written} is too large")), "{q}\n{e}");
+        assert!(!e.contains("4294967295"), "{q}: bound must not be clamped\n{e}");
+    }
+    // Beyond u64 the bound is not a number at all.
+    let e = compile_err("TEXT = 99999999999999999999 TO n WORD");
+    assert!(e.contains("txtql::parse::bad_number"), "{e}");
+}
+
+#[test]
 fn empty_literal() {
     assert_snapshot!(compile_err("TEXT = WORD ''"));
     assert!(codes("TEXT = WORD '  '").is_empty(), "spaces are ordinary characters");

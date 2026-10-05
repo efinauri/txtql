@@ -44,7 +44,7 @@ Standard error. JSON goes to standard output. Exit code 1 for any error, 2 for `
 
 ## Known limitations
 
-- **Case-insensitive literals** (`i'text'`) use simple per-character lower-casing, not full Unicode case folding (`ß` does not match `SS`).
+- **Case-insensitive literals** (`i'text'`, patterns only) use simple per-character lower-casing, not full Unicode case folding (`ß` does not match `SS`).
 - **`WHERE` chains**: a `WHERE` clause re-evaluates its rule's captures, so deeply nested chains of rules that each have a `WHERE` cost O(depth squared). This counts against the step limit.
 - **Template errors inside `FOR`** point at the whole rule's match, not at the specific item.
 - **`--max-depth` is a search bound**, so the chosen reading can nest up to about twice that depth; see [[Performance and Limits|Performance-and-Limits]].

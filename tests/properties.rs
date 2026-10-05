@@ -608,8 +608,9 @@ fn random_tmpl(r: &mut Rng, depth: u32) -> Template {
     let t = |kind| Template { kind, span: Span::default() };
     let leaf = |r: &mut Rng| match r.below(6) {
         0 => t(TmplKind::Str(r.pick(&["k", "a'b", "x\\y", "\n"]).to_string())),
-        1 => t(TmplKind::Num(serde_json::Number::from(r.below(100) as i64 - 50))),
-        2 => t(TmplKind::Num(serde_json::Number::from_f64(r.pick(&[-1.5, 1e-8, 1e20, 0.1])).unwrap())),
+        // Number literals are unsigned (lang/Lexicon.NumberLiterals): no negative constants.
+        1 => t(TmplKind::Num(serde_json::Number::from(if r.chance(8) { u64::MAX } else { r.below(100) }))),
+        2 => t(TmplKind::Num(serde_json::Number::from_f64(r.pick(&[1.5, 1e-8, 1e20, 0.1, 2.5e-7])).unwrap())),
         3 => t(TmplKind::Bool(r.chance(2))),
         4 => t(TmplKind::Null),
         _ => t(TmplKind::Path((0..1 + r.below(3)).map(|_| ident(r.pick(LABELS))).collect())),
